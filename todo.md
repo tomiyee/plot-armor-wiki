@@ -29,27 +29,27 @@ Steps 8 → 9 → 10 → 12 are a strict sequential chain.
 - ~~Verify `npm run dev` starts without errors and the page renders.~~
 - Commit: `chore: scaffold Next.js project`
 
-## Step 2 — Database + Drizzle setup
+## ~~Step 2 — Database + Drizzle setup~~ ✓
 
-- Create a Neon project and copy the connection string to `.env.local` as `DATABASE_URL`.
-- Install: `drizzle-orm`, `@neondatabase/serverless`, `drizzle-kit`, `dotenv`.
-- Create `src/db/schema.ts` with all tables defined using Drizzle's schema DSL. Define all tables from the spec in one file:
-  - `serials` — `id`, `title`, `description`, `splash_art_url`
-  - `serial_authors` — `serial_id`, `name`, `display_order`
-  - `chapters` — `id`, `serial_id`, `display_name`, `idx`
-  - `schemas` — `id`, `serial_id`, `name`, `has_floater`
-  - `schema_sections` — `id`, `schema_id`, `name`, `display_order`, `created_at`, `deleted_at`
-  - `schema_floater_rows` — `id`, `schema_id`, `label`, `display_order`, `created_at`, `deleted_at`
-  - `pages` — `id`, `schema_id`, `name`, `intro_chapter_id`
-  - `page_section_versions` — `page_id`, `section_id`, `from_chapter_id`, `to_chapter_id`, `content`; PK `(page_id, section_id, from_chapter_id)`
-  - `page_floater_versions` — `page_id`, `from_chapter_id`, `to_chapter_id`, `image_url`; PK `(page_id, from_chapter_id)`
-  - `page_floater_row_versions` — `page_id`, `floater_row_id`, `from_chapter_id`, `to_chapter_id`, `content`; PK `(page_id, floater_row_id, from_chapter_id)`
-  - `users` — `id`, `email`, `display_name`, `created_at`
-  - `user_progress` — `user_id`, `serial_id`, `chapter_id`, `updated_at`; PK `(user_id, serial_id)`
-- Create `drizzle.config.ts` pointing at `src/db/schema.ts` and Neon.
-- Create `src/db/index.ts` exporting a `db` client using `@neondatabase/serverless`.
-- Run `npx drizzle-kit generate` and `npx drizzle-kit migrate` to apply the schema to Neon.
-- Add `.env.local` to `.gitignore`.
+- ~~Create a Neon project and copy the connection string to `.env.local` as `DATABASE_URL`.~~
+- ~~Install: `drizzle-orm`, `@neondatabase/serverless`, `drizzle-kit`, `dotenv`.~~
+- ~~Create `src/db/schema.ts` with all tables defined using Drizzle's schema DSL. Define all tables from the spec in one file:~~
+  - ~~`serials` — `id`, `title`, `description`, `splash_art_url`~~
+  - ~~`serial_authors` — `serial_id`, `name`, `display_order`~~
+  - ~~`chapters` — `id`, `serial_id`, `display_name`, `idx`~~
+  - ~~`schemas` — `id`, `serial_id`, `name`, `has_floater`~~
+  - ~~`schema_sections` — `id`, `schema_id`, `name`, `display_order`, `created_at`, `deleted_at`~~
+  - ~~`schema_floater_rows` — `id`, `schema_id`, `label`, `display_order`, `created_at`, `deleted_at`~~
+  - ~~`pages` — `id`, `schema_id`, `name`, `intro_chapter_id`~~
+  - ~~`page_section_versions` — `page_id`, `section_id`, `from_chapter_id`, `to_chapter_id`, `content`; PK `(page_id, section_id, from_chapter_id)`~~
+  - ~~`page_floater_versions` — `page_id`, `from_chapter_id`, `to_chapter_id`, `image_url`; PK `(page_id, from_chapter_id)`~~
+  - ~~`page_floater_row_versions` — `page_id`, `floater_row_id`, `from_chapter_id`, `to_chapter_id`, `content`; PK `(page_id, floater_row_id, from_chapter_id)`~~
+  - ~~`users` — `id`, `email`, `display_name`, `created_at`~~
+  - ~~`user_progress` — `user_id`, `serial_id`, `chapter_id`, `updated_at`; PK `(user_id, serial_id)`~~
+- ~~Create `drizzle.config.ts` pointing at `src/db/schema.ts` and Neon.~~
+- ~~Create `src/db/index.ts` exporting a `db` client using `@neondatabase/serverless`.~~
+- ~~Run `npx drizzle-kit generate` and `npx drizzle-kit migrate` to apply the schema to Neon.~~
+- ~~Add `.env.local` to `.gitignore`.~~
 - Commit: `feat: add Drizzle schema and initial Neon migration`
 
 ## Step 3 — Home page static shell

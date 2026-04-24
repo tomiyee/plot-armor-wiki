@@ -73,7 +73,7 @@ First-time visitors on any serial default to chapter 1 and see a callout prompti
 
 - `spec.md` — canonical product and data model spec; consult before changing data model or spoiler logic.
 - `src/db/schema.ts` — Drizzle ORM table definitions; source of truth for the data model.
-- `src/db/index.ts` — Neon serverless client; exports `db` for use in Server Components and API routes.
+- `src/db/index.ts` — Drizzle client (postgres.js driver); exports `db` for use in Server Components and API routes.
 - `drizzle.config.ts` — Drizzle Kit config; reads `DATABASE_URL` from `.env.local`.
 - `src/app/layout.tsx` — root layout with Geist fonts and Tailwind base.
 - `src/app/page.tsx` — home page (currently empty scaffold).
