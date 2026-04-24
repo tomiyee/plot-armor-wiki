@@ -7,11 +7,11 @@ Tech stack: Next.js 15 (App Router), TypeScript, Tailwind CSS, Drizzle ORM, Neon
 
 ---
 
-## Step 1 — Project scaffold
+## ~~Step 1 — Project scaffold~~ ✓
 
-- Run `npx create-next-app@latest` with TypeScript, Tailwind, App Router, src/ directory, no `turbopack` (compatibility with Neon/Auth.js).
-- Delete all boilerplate content from `page.tsx`, `globals.css`, etc.
-- Verify `npm run dev` starts without errors and the page renders.
+- ~~Run `npx create-next-app@latest` with TypeScript, Tailwind, App Router, src/ directory, no `turbopack` (compatibility with Neon/Auth.js).~~
+- ~~Delete all boilerplate content from `page.tsx`, `globals.css`, etc.~~
+- ~~Verify `npm run dev` starts without errors and the page renders.~~
 - Commit: `chore: scaffold Next.js project`
 
 ## Step 2 — Database + Drizzle setup
