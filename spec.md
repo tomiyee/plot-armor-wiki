@@ -191,3 +191,47 @@ user_progress
 ```
 
 Anonymous user progress is stored client-side in `localStorage` per serial — no server row is created.
+
+---
+
+## Tech Stack
+
+### Framework: Next.js (App Router)
+The URL pattern `/{serial}/{schema}/{page-name}` maps directly to file-based routing. SSR is required because spoiler filtering is user-specific — content is rendered per-request with the user's chapter cutoff. Next.js handles the API layer (auth, progress saves) in the same project.
+
+### Database: PostgreSQL
+The SCD Type 2 queries (`WHERE from_chapter_idx <= N AND (to_chapter_idx IS NULL OR to_chapter_idx > N)`) are complex range comparisons. PostgreSQL handles these cleanly, and the data model is inherently relational with multiple join paths.
+
+### ORM: Drizzle ORM
+The versioned queries are too custom for Prisma's generated queries to handle ergonomically. Drizzle allows typed SQL directly where needed, without fighting the abstraction. Schemas map 1:1 to the tables defined above.
+
+### Auth: Auth.js (NextAuth v5)
+Handles the anonymous → logged-in transition. Anonymous users fall through to `localStorage` for progress; logged-in users write to `user_progress`. Auth.js sessions expose `user_id` in Server Components cleanly.
+
+### Search: PostgreSQL full-text search (tsvector)
+Filtered search (excluding pages beyond the user's chapter) requires server-side filtering, making client-side or external search engines (Meilisearch, Typesense) more complex to sync. PG full-text search keeps the chapter filter as a plain SQL `WHERE` clause in the same query.
+
+### Markdown: `@uiw/react-md-editor` + `react-markdown`
+Editor for contributors, renderer for readers.
+
+### Styling: Tailwind CSS
+
+### Hosting: Vercel + Neon (serverless Postgres)
+Neon's branching is useful for schema migrations. Neon and Vercel both have free tiers sufficient for early development.
+
+---
+
+### Key Trade-offs
+
+| Decision | Chosen | Alternative | Rationale |
+|---|---|---|---|
+| Framework | Next.js | Remix | Larger ecosystem; RSC reduces client bundle on content-heavy pages. Remix is the strongest alternative — its loader/action model maps cleanly to per-request versioned content fetching. |
+| ORM | Drizzle | Prisma | Drizzle wins when queries are custom SQL-heavy |
+| Search | PG FTS | Meilisearch | Meilisearch is faster/fuzzier but requires a sync pipeline |
+| DB host | Neon | Supabase, Railway | Supabase adds an auth layer that duplicates Auth.js |
+
+### Known Risks
+
+- **App Router complexity** — The chapter selector (reactive, in the navbar) must be a Client Component while the rest of the page can be a Server Component. Getting this boundary wrong causes unnecessary client JS or stale renders.
+- **Vercel alignment** — Next.js works everywhere, but some features (Server Actions) have rough edges when self-hosting or deploying to Cloudflare Workers.
+- **SCD Type 2 read path** — Rendering a wiki page requires joining `page_section_versions` and `page_floater_row_versions` with chapter range filtering. Worth prototyping this query in SQL before committing to the ORM layer.
