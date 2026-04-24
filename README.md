@@ -69,3 +69,26 @@ user_progress    user_id, serial_id, chapter_id, updated_at
 ```
 
 For the full design spec, see [spec.md](spec.md).
+
+## Tech stack
+
+| Layer | Choice |
+|-------|--------|
+| Framework | Next.js 16 (App Router) |
+| Database | PostgreSQL via Neon |
+| ORM | Drizzle ORM |
+| Auth | Auth.js (NextAuth v5) |
+| Search | PostgreSQL full-text search |
+| Styling | Tailwind CSS v4 |
+| Hosting | Vercel |
+
+Rationale for each decision is in [spec.md § Tech Stack](spec.md#tech-stack).
+
+## Getting started
+
+```bash
+npm install
+npm run dev      # starts dev server at http://localhost:3000
+npm run build    # production build
+npm run lint     # ESLint
+```
