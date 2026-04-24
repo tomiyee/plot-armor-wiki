@@ -7,6 +7,21 @@ Tech stack: Next.js 15 (App Router), TypeScript, Tailwind CSS, Drizzle ORM, Neon
 
 ---
 
+## Parallelization opportunities
+
+Steps with no shared file or data dependency can be developed concurrently in separate git worktrees.
+
+| After step | Can run in parallel |
+|------------|-------------------|
+| Step 1 | **Steps 2 + 3** — DB setup vs. UI shell |
+| Steps 2 + 3 | **Steps 4 + 7** — serial CRUD vs. Auth.js setup |
+| Step 5 | **Steps 6 + 11** — schema management vs. chapter progress selector |
+| Step 12 (+ Step 7 already done) | **Steps 13, 14, 15** — editor, page blocking, spoiler-aware search |
+
+Steps 8 → 9 → 10 → 12 are a strict sequential chain.
+
+---
+
 ## ~~Step 1 — Project scaffold~~ ✓
 
 - ~~Run `npx create-next-app@latest` with TypeScript, Tailwind, App Router, src/ directory, no `turbopack` (compatibility with Neon/Auth.js).~~
