@@ -88,7 +88,30 @@ Rationale for each decision is in [spec.md § Tech Stack](spec.md#tech-stack).
 
 ```bash
 npm install
-npm run dev      # starts dev server at http://localhost:3000
+```
+
+Create `.env.local` with your Neon connection string:
+
+```
+DATABASE_URL=postgres://<user>:<password>@<host>/neondb?sslmode=require
+```
+
+Apply the database migration:
+
+```bash
+npx drizzle-kit migrate
+```
+
+Start the dev server:
+
+```bash
+npm run dev      # http://localhost:3000
 npm run build    # production build
 npm run lint     # ESLint
+```
+
+To regenerate migrations after schema changes:
+
+```bash
+npx drizzle-kit generate
 ```
