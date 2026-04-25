@@ -88,7 +88,44 @@ Rationale for each decision is in [spec.md § Tech Stack](spec.md#tech-stack).
 
 ```bash
 npm install
-npm run dev      # starts dev server at http://localhost:3000
+```
+
+Create `.env.local` with your database connection string.
+
+**Neon (production/staging):**
+```
+DATABASE_URL=postgres://<user>:<password>@<host>/neondb?sslmode=require
+```
+
+**Local Docker (development):**
+```
+DATABASE_URL=postgres://postgres:secret@localhost:5432/plotarmor
+```
+
+Then start the database. For local Docker, run the helper script (PowerShell):
+
+```powershell
+.\scripts\start-db.ps1
+```
+
+The script reads `DATABASE_URL` from `.env.local` and uses those values when creating the container, so credentials are defined in one place. To stop the container: `docker stop plotarmor-db`.
+
+Apply the database migration:
+
+```bash
+npx drizzle-kit migrate
+```
+
+Start the dev server:
+
+```bash
+npm run dev      # http://localhost:3000
 npm run build    # production build
 npm run lint     # ESLint
+```
+
+To regenerate migrations after schema changes:
+
+```bash
+npx drizzle-kit generate
 ```

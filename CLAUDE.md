@@ -8,7 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev       # start Next.js dev server
 npm run build     # production build
 npm run lint      # run ESLint
+npx drizzle-kit generate   # generate migration after schema changes
+npx drizzle-kit migrate    # apply pending migrations to Neon
 ```
+
+For local development with Docker instead of Neon, set `DATABASE_URL` in `.env.local` to a `localhost` connection string, then:
+
+```powershell
+.\scripts\start-db.ps1   # create or start the local Postgres container
+```
+
+The script reads `DATABASE_URL` from `.env.local` and uses those values when creating the Docker container, so credentials are defined in one place.
 
 No test runner is configured yet.
 
@@ -23,7 +33,9 @@ PlotArmor is a spoiler-safe wiki platform. Users set a **chapter cutoff** per se
 /{serial}/{schema}/{page}   # wiki page
 ```
 
-### Tech stack (planned, not yet implemented)
+### Tech stack
+
+Database and ORM layers are implemented. Auth, Search, and Markdown are not yet.
 
 | Layer | Choice |
 |---|---|
@@ -68,5 +80,8 @@ First-time visitors on any serial default to chapter 1 and see a callout prompti
 ### Key design files
 
 - `spec.md` — canonical product and data model spec; consult before changing data model or spoiler logic.
+- `src/db/schema.ts` — Drizzle ORM table definitions; source of truth for the data model.
+- `src/db/index.ts` — Drizzle client (postgres.js driver); exports `db` for use in Server Components and API routes.
+- `drizzle.config.ts` — Drizzle Kit config; reads `DATABASE_URL` from `.env.local`.
 - `src/app/layout.tsx` — root layout with Geist fonts and Tailwind base.
 - `src/app/page.tsx` — home page (currently empty scaffold).
