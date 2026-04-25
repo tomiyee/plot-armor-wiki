@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev       # start Next.js dev server
-npm run build     # production build
-npm run lint      # run ESLint
-npx drizzle-kit generate   # generate migration after schema changes
-npx drizzle-kit migrate    # apply pending migrations to Neon
+pnpm dev          # start Next.js dev server
+pnpm build        # production build
+pnpm lint         # run ESLint
+pnpm drizzle-kit generate   # generate migration after schema changes
+pnpm drizzle-kit migrate    # apply pending migrations to Neon
 ```
 
 For local development with Docker instead of Neon, set `DATABASE_URL` in `.env.local` to a `localhost` connection string, then:
