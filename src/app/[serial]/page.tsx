@@ -6,6 +6,9 @@ import { addChapter, addVolume } from './actions';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Text } from '@/components/ui/text';
+import { Box } from '@/components/ui/box';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 
 interface Props {
   params: Promise<{ serial: string }>;
@@ -57,27 +60,27 @@ export default async function SerialPage({ params }: Props) {
 
   return (
     <main className="flex flex-col items-center px-6 py-16 gap-8">
-      <div className="w-full max-w-2xl flex flex-col gap-4">
+      <Box col className="w-full max-w-2xl gap-4">
         {/* Serial header */}
-        <div className="flex flex-col gap-2">
+        <Box col className="gap-2">
           <Text variant="h1">{serial.title}</Text>
           {authors.length > 0 && (
-            <Text variant="faint" muted>{authors.map((a) => a.name).join(', ')}</Text>
+            <Text muted>{authors.map((a) => a.name).join(', ')}</Text>
           )}
           {serial.description && (
-            <Text variant="body" className="mt-1">{serial.description}</Text>
+            <Text className="mt-1">{serial.description}</Text>
           )}
-        </div>
+        </Box>
 
         {/* Volume and chapter list */}
         <section className="flex flex-col gap-4 mt-4">
           <Text variant="h2">Volumes &amp; Chapters</Text>
           {volumeList.length > 0 ? (
-            <div className="flex flex-col gap-5">
+            <Box col className="gap-5">
               {volumeList.map((volume) => {
                 const vChapters = chaptersByVolume.get(volume.id) ?? [];
                 return (
-                  <div key={volume.id} className="flex flex-col gap-2">
+                  <Box col key={volume.id} className="gap-2">
                     <Text variant="h4">{volume.displayName}</Text>
                     {vChapters.length > 0 ? (
                       <ol className="flex flex-col gap-1 pl-3 border-l-2 border-gray-100">
@@ -87,19 +90,19 @@ export default async function SerialPage({ params }: Props) {
                             className="flex items-center justify-between rounded-md px-3 py-2 text-sm"
                           >
                             <span>{chapter.displayName}</span>
-                            <Text as="span" variant="faint">#{chapter.idx}</Text>
+                            <Text as="span" muted>#{chapter.idx}</Text>
                           </li>
                         ))}
                       </ol>
                     ) : (
-                      <Text variant="faint" className="pl-3">No chapters yet.</Text>
+                      <Text muted className="pl-3">No chapters yet.</Text>
                     )}
-                  </div>
+                  </Box>
                 );
               })}
-            </div>
+            </Box>
           ) : (
-            <Text variant="faint" muted>No volumes yet. Add a volume to get started.</Text>
+            <Text muted>No volumes yet. Add a volume to get started.</Text>
           )}
         </section>
 
@@ -107,23 +110,20 @@ export default async function SerialPage({ params }: Props) {
         <section className="flex flex-col gap-3 mt-2">
           <Text variant="h3">Add volume</Text>
           <form action={addVolumeForSerial} className="flex gap-3 items-end">
-            <div className="flex flex-col gap-1 flex-1">
-              <Text as="label" variant="label" htmlFor="volumeDisplayName">
+            <Box col flex={1} className="gap-1">
+              <Label htmlFor="volumeDisplayName">
                 Display name <span className="text-red-500">*</span>
-              </Text>
+              </Label>
               <Input
                 id="volumeDisplayName"
                 name="displayName"
                 required
                 placeholder="e.g. Volume 1"
               />
-            </div>
-            <button
-              type="submit"
-              className="rounded-lg bg-black px-5 py-2 text-sm font-medium text-white hover:bg-gray-800"
-            >
+            </Box>
+            <Button type="submit">
               Add volume
-            </button>
+            </Button>
           </form>
         </section>
 
@@ -131,13 +131,13 @@ export default async function SerialPage({ params }: Props) {
         <section className="flex flex-col gap-3 mt-2">
           <Text variant="h3">Add chapter</Text>
           {volumeList.length === 0 ? (
-            <Text variant="faint" muted>Add a volume before adding chapters.</Text>
+            <Text muted>Add a volume before adding chapters.</Text>
           ) : (
             <form action={addChapterForSerial} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <Text as="label" variant="label" htmlFor="volumeId">
+              <Box col className="gap-1">
+                <Label htmlFor="volumeId">
                   Volume <span className="text-red-500">*</span>
-                </Text>
+                </Label>
                 <Select
                   id="volumeId"
                   name="volumeId"
@@ -148,28 +148,25 @@ export default async function SerialPage({ params }: Props) {
                     value: v.id,
                   }))}
                 />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Text as="label" variant="label" htmlFor="chapterDisplayName">
+              </Box>
+              <Box col className="gap-1">
+                <Label htmlFor="chapterDisplayName">
                   Display name <span className="text-red-500">*</span>
-                </Text>
+                </Label>
                 <Input
                   id="chapterDisplayName"
                   name="displayName"
                   required
                   placeholder="e.g. Chapter 1"
                 />
-              </div>
-              <button
-                type="submit"
-                className="self-start rounded-lg bg-black px-5 py-2 text-sm font-medium text-white hover:bg-gray-800"
-              >
+              </Box>
+              <Button type="submit" className="self-start">
                 Add chapter
-              </button>
+              </Button>
             </form>
           )}
         </section>
-      </div>
+      </Box>
     </main>
   );
 }

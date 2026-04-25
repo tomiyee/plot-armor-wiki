@@ -45,7 +45,7 @@ export default function SerialList({ serials }: Props) {
               >
                 <span className="font-medium">{serial.title}</span>
                 {serial.description && (
-                  <Text variant="faint" muted className="mt-0.5 line-clamp-2">
+                  <Text muted className="mt-0.5 line-clamp-2">
                     {serial.description}
                   </Text>
                 )}
@@ -54,7 +54,7 @@ export default function SerialList({ serials }: Props) {
           ))}
         </ul>
       ) : (
-        <Text variant="faint" muted className="mt-2">
+        <Text muted className="mt-2">
           {query.trim() ? 'No serials match your search.' : 'No wikis yet.'}
         </Text>
       )}

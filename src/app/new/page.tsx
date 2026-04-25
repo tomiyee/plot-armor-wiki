@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { createSerial } from './actions';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { Box } from '@/components/ui/box';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 
 export default function NewSerialPage() {
   const [authors, setAuthors] = useState<string[]>(['']);
@@ -26,23 +29,23 @@ export default function NewSerialPage() {
         <Text variant="h1" className="text-2xl mb-8">Create a new wiki</Text>
         <form action={createSerial} className="flex flex-col gap-5">
           {/* Title */}
-          <div className="flex flex-col gap-1">
-            <Text as="label" variant="label" htmlFor="title">
+          <Box col className="gap-1">
+            <Label htmlFor="title">
               Title <span className="text-red-500">*</span>
-            </Text>
+            </Label>
             <Input
               id="title"
               name="title"
               required
               placeholder="e.g. One Piece"
             />
-          </div>
+          </Box>
 
           {/* Description */}
-          <div className="flex flex-col gap-1">
-            <Text as="label" variant="label" htmlFor="description">
+          <Box col className="gap-1">
+            <Label htmlFor="description">
               Description
-            </Text>
+            </Label>
             <textarea
               id="description"
               name="description"
@@ -50,13 +53,13 @@ export default function NewSerialPage() {
               placeholder="A brief spoiler-free synopsis…"
               className="rounded-lg border px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black resize-none"
             />
-          </div>
+          </Box>
 
           {/* Authors */}
-          <div className="flex flex-col gap-2">
+          <Box col className="gap-2">
             <Text variant="label">Authors</Text>
             {authors.map((author, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <Box key={i} className="items-center gap-2">
                 <Input
                   name="authors"
                   value={author}
@@ -65,44 +68,43 @@ export default function NewSerialPage() {
                   className="flex-1"
                 />
                 {authors.length > 1 && (
-                  <button
+                  <Button
                     type="button"
+                    variant="destructive"
+                    size="sm"
                     onClick={() => removeAuthor(i)}
-                    className="text-sm text-red-500 hover:text-red-700 px-2"
                   >
                     Remove
-                  </button>
+                  </Button>
                 )}
-              </div>
+              </Box>
             ))}
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={addAuthor}
-              className="self-start text-sm text-gray-600 hover:text-black underline"
+              className="self-start"
             >
               + Add author
-            </button>
-          </div>
+            </Button>
+          </Box>
 
           {/* Splash art URL */}
-          <div className="flex flex-col gap-1">
-            <Text as="label" variant="label" htmlFor="splashArtUrl">
+          <Box col className="gap-1">
+            <Label htmlFor="splashArtUrl">
               Splash art URL <span className="text-gray-400">(optional)</span>
-            </Text>
+            </Label>
             <Input
               id="splashArtUrl"
               name="splashArtUrl"
               type="url"
               placeholder="https://example.com/cover.jpg"
             />
-          </div>
+          </Box>
 
-          <button
-            type="submit"
-            className="mt-2 rounded-lg bg-black px-5 py-2 text-sm font-medium text-white hover:bg-gray-800"
-          >
+          <Button type="submit" className="mt-2">
             Create wiki
-          </button>
+          </Button>
         </form>
       </div>
     </main>
