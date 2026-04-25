@@ -132,16 +132,19 @@ Each section and floater row has a **stable ID** so that content rows survive re
 
 ```
 serials
-  id, title, description, splash_art_url
+  id, title, slug, description, splash_art_url
 
 serial_authors
   serial_id, name, display_order
 
-chapters
+volumes
   id, serial_id, display_name, idx
+
+chapters
+  id, volume_id, display_name, idx
 ```
 
-`chapters.idx` is the integer used in all range comparisons.
+`chapters.idx` is a **global, serial-level** integer used in all range comparisons — it is strictly increasing across all volumes (all chapters in Volume N come before Volume N+1). Volumes are an organizational grouping layer only; they do not affect the SCD query logic.
 
 #### Schema definition (wall-clock versioned)
 

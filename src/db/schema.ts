@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgEnum,
   serial,
   text,
   integer,
@@ -8,11 +9,28 @@ import {
   primaryKey,
 } from 'drizzle-orm/pg-core';
 
+export const chapterTypeEnum = pgEnum('chapter_type', [
+  'Chapter',
+  'Episode',
+  'Issue',
+  'Part',
+]);
+
+export const volumeTypeEnum = pgEnum('volume_type', [
+  'Volume',
+  'Season',
+  'Arc',
+  'Book',
+]);
+
 export const serials = pgTable('serials', {
   id: serial('id').primaryKey(),
   title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
   description: text('description'),
   splashArtUrl: text('splash_art_url'),
+  chapterType: chapterTypeEnum('chapter_type').notNull().default('Chapter'),
+  volumeType: volumeTypeEnum('volume_type').notNull().default('Volume'),
 });
 
 export const serialAuthors = pgTable(
@@ -27,7 +45,7 @@ export const serialAuthors = pgTable(
   (t) => [primaryKey({ columns: [t.serialId, t.displayOrder] })],
 );
 
-export const chapters = pgTable('chapters', {
+export const volumes = pgTable('volumes', {
   id: serial('id').primaryKey(),
   serialId: integer('serial_id')
     .notNull()
@@ -36,12 +54,22 @@ export const chapters = pgTable('chapters', {
   idx: integer('idx').notNull(),
 });
 
-export const schemas = pgTable('schemas', {
+export const chapters = pgTable('chapters', {
+  id: serial('id').primaryKey(),
+  volumeId: integer('volume_id')
+    .notNull()
+    .references(() => volumes.id),
+  displayName: text('display_name').notNull(),
+  idx: integer('idx').notNull(),
+});
+
+export const pageSchemas = pgTable('page_schemas', {
   id: serial('id').primaryKey(),
   serialId: integer('serial_id')
     .notNull()
     .references(() => serials.id),
   name: text('name').notNull(),
+  body: text('body'),
   hasFloater: boolean('has_floater').notNull().default(false),
 });
 
@@ -49,7 +77,7 @@ export const schemaSections = pgTable('schema_sections', {
   id: serial('id').primaryKey(),
   schemaId: integer('schema_id')
     .notNull()
-    .references(() => schemas.id),
+    .references(() => pageSchemas.id),
   name: text('name').notNull(),
   displayOrder: integer('display_order').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -60,7 +88,7 @@ export const schemaFloaterRows = pgTable('schema_floater_rows', {
   id: serial('id').primaryKey(),
   schemaId: integer('schema_id')
     .notNull()
-    .references(() => schemas.id),
+    .references(() => pageSchemas.id),
   label: text('label').notNull(),
   displayOrder: integer('display_order').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -71,7 +99,7 @@ export const pages = pgTable('pages', {
   id: serial('id').primaryKey(),
   schemaId: integer('schema_id')
     .notNull()
-    .references(() => schemas.id),
+    .references(() => pageSchemas.id),
   name: text('name').notNull(),
   introChapterId: integer('intro_chapter_id')
     .notNull()

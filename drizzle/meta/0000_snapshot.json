@@ -1,5 +1,5 @@
 {
-  "id": "f42721b5-bb70-48c1-8136-cf49b7daeb00",
+  "id": "8b7ea095-389f-41d1-80b6-b6d4fc5f36e1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -14,8 +14,8 @@
           "primaryKey": true,
           "notNull": true
         },
-        "serial_id": {
-          "name": "serial_id",
+        "volume_id": {
+          "name": "volume_id",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
@@ -35,12 +35,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "chapters_serial_id_serials_id_fk": {
-          "name": "chapters_serial_id_serials_id_fk",
+        "chapters_volume_id_volumes_id_fk": {
+          "name": "chapters_volume_id_volumes_id_fk",
           "tableFrom": "chapters",
-          "tableTo": "serials",
+          "tableTo": "volumes",
           "columnsFrom": [
-            "serial_id"
+            "volume_id"
           ],
           "columnsTo": [
             "id"
@@ -246,6 +246,64 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.page_schemas": {
+      "name": "page_schemas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "serial_id": {
+          "name": "serial_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "has_floater": {
+          "name": "has_floater",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "page_schemas_serial_id_serials_id_fk": {
+          "name": "page_schemas_serial_id_serials_id_fk",
+          "tableFrom": "page_schemas",
+          "tableTo": "serials",
+          "columnsFrom": [
+            "serial_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.page_section_versions": {
       "name": "page_section_versions",
       "schema": "",
@@ -383,10 +441,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "pages_schema_id_schemas_id_fk": {
-          "name": "pages_schema_id_schemas_id_fk",
+        "pages_schema_id_page_schemas_id_fk": {
+          "name": "pages_schema_id_page_schemas_id_fk",
           "tableFrom": "pages",
-          "tableTo": "schemas",
+          "tableTo": "page_schemas",
           "columnsFrom": [
             "schema_id"
           ],
@@ -460,10 +518,10 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "schema_floater_rows_schema_id_schemas_id_fk": {
-          "name": "schema_floater_rows_schema_id_schemas_id_fk",
+        "schema_floater_rows_schema_id_page_schemas_id_fk": {
+          "name": "schema_floater_rows_schema_id_page_schemas_id_fk",
           "tableFrom": "schema_floater_rows",
-          "tableTo": "schemas",
+          "tableTo": "page_schemas",
           "columnsFrom": [
             "schema_id"
           ],
@@ -524,64 +582,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "schema_sections_schema_id_schemas_id_fk": {
-          "name": "schema_sections_schema_id_schemas_id_fk",
+        "schema_sections_schema_id_page_schemas_id_fk": {
+          "name": "schema_sections_schema_id_page_schemas_id_fk",
           "tableFrom": "schema_sections",
-          "tableTo": "schemas",
+          "tableTo": "page_schemas",
           "columnsFrom": [
             "schema_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.schemas": {
-      "name": "schemas",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "serial_id": {
-          "name": "serial_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "has_floater": {
-          "name": "has_floater",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "schemas_serial_id_serials_id_fk": {
-          "name": "schemas_serial_id_serials_id_fk",
-          "tableFrom": "schemas",
-          "tableTo": "serials",
-          "columnsFrom": [
-            "serial_id"
           ],
           "columnsTo": [
             "id"
@@ -665,6 +671,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "description": {
           "name": "description",
           "type": "text",
@@ -676,12 +688,36 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "chapter_type": {
+          "name": "chapter_type",
+          "type": "chapter_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Chapter'"
+        },
+        "volume_type": {
+          "name": "volume_type",
+          "type": "volume_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Volume'"
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "serials_slug_unique": {
+          "name": "serials_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -817,9 +853,81 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "public.volumes": {
+      "name": "volumes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "serial_id": {
+          "name": "serial_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idx": {
+          "name": "idx",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "volumes_serial_id_serials_id_fk": {
+          "name": "volumes_serial_id_serials_id_fk",
+          "tableFrom": "volumes",
+          "tableTo": "serials",
+          "columnsFrom": [
+            "serial_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.chapter_type": {
+      "name": "chapter_type",
+      "schema": "public",
+      "values": [
+        "Chapter",
+        "Episode",
+        "Issue",
+        "Part"
+      ]
+    },
+    "public.volume_type": {
+      "name": "volume_type",
+      "schema": "public",
+      "values": [
+        "Volume",
+        "Season",
+        "Arc",
+        "Book"
+      ]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},

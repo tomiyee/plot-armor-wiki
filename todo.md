@@ -15,7 +15,7 @@ Steps with no shared file or data dependency can be developed concurrently in se
 |------------|-------------------|
 | Step 1 | **Steps 2 + 3** — DB setup vs. UI shell |
 | Steps 2 + 3 | **Steps 4 + 7** — serial CRUD vs. Auth.js setup |
-| Step 5 | **Steps 6 + 11** — schema management vs. chapter progress selector |
+| Step 5b | **Steps 6 + 11** — schema management vs. chapter progress selector |
 | Step 12 (+ Step 7 already done) | **Steps 13, 14, 15** — editor, page blocking, spoiler-aware search |
 
 Steps 8 → 9 → 10 → 12 are a strict sequential chain.
@@ -71,13 +71,23 @@ Steps 8 → 9 → 10 → 12 are a strict sequential chain.
 - ~~Wire the search bar to filter the displayed list client-side (no FTS yet).~~
 - Commit: `feat: serial creation form and listing on home page`
 
-## Step 5 — Chapter management
+## ~~Step 5 — Chapter management~~ ✓
 
-- Create `app/[serial]/page.tsx` — the serial detail page. For now it shows:
-  - The serial title, description, and authors.
-  - A list of existing chapters in index order.
-  - A form to add a new chapter (display name + index). Submit via Server Action inserting into `chapters`.
+- ~~Create `app/[serial]/page.tsx` — the serial detail page. For now it shows:~~
+  - ~~The serial title, description, and authors.~~
+  - ~~A list of existing chapters in index order.~~
+  - ~~A form to add a new chapter (display name only; index auto-assigned as max existing index + 1). Submit via Server Action inserting into `chapters`.~~
 - Commit: `feat: serial detail page with chapter list and add-chapter form`
+
+## Step 5b — Volume and chapter reordering (drag and drop)
+
+- On the serial detail page, make both the volume list and each volume's chapter list reorderable via drag and drop.
+- Use `@dnd-kit/core` and `@dnd-kit/sortable` (or equivalent) — no native HTML5 drag API, which lacks touch support.
+- **Volume reordering:** dragging a volume to a new position updates `volumes.idx` for all volumes in the serial via a Server Action; chapters are not renumbered.
+- **Chapter reordering within a volume:** dragging a chapter to a new position within its volume reassigns `chapters.idx` globally so the serial-level linear order remains strictly increasing (all chapters of earlier volumes precede later ones).
+- Both Server Actions must update all affected rows in a single transaction to avoid partial reorder states.
+- No optimistic UI required for now — revalidate the page after each action completes.
+- Commit: `feat: drag-and-drop reordering for volumes and chapters`
 
 ## Step 6 — Schema management
 
@@ -99,6 +109,16 @@ Steps 8 → 9 → 10 → 12 are a strict sequential chain.
 - Update `<Navbar>` to show a sign-in button (unauthenticated) or the user's display name + sign-out (authenticated), using `auth()` from `src/auth.ts` in a Server Component.
 - Verify sign-in and sign-out work end-to-end.
 - Commit: `feat: Auth.js setup with GitHub provider and session in navbar`
+
+## Step 7b — Page schema index page
+
+- Create `app/[serial]/[schema]/page.tsx` — the schema index page. It shows:
+  - The schema name as a heading.
+  - The schema `body` rendered as markdown (using `react-markdown`) if set — this is the editor-provided description of the category (e.g. what "Characters" means for this wiki).
+  - A list of all pages belonging to this schema, each linking to `/{serial}/{schema}/{page-name}`.
+- Resolve the serial via `WHERE slug = ?` and the schema via `WHERE serial_id = ? AND name = ?`.
+- Link to this index page from the serial detail page next to each schema name.
+- Commit: `feat: page schema index page with body description and page list`
 
 ## Step 8 — Page creation
 

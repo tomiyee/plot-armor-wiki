@@ -20,10 +20,13 @@ export async function createSerial(formData: FormData) {
     .map((a) => a.trim())
     .filter((a) => a.length > 0);
 
+  const slug = titleToSlug(title.trim());
+
   const [inserted] = await db
     .insert(serials)
     .values({
       title: title.trim(),
+      slug,
       description:
         description && typeof description === 'string' && description.trim()
           ? description.trim()
@@ -47,6 +50,5 @@ export async function createSerial(formData: FormData) {
     );
   }
 
-  const slug = titleToSlug(title.trim());
   redirect(`/${slug}`);
 }

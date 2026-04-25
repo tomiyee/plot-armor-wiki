@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { titleToSlug } from '@/lib/slug';
 
 type Serial = {
   id: number;
   title: string;
+  slug: string;
   description: string | null;
   splashArtUrl: string | null;
 };
@@ -38,7 +38,7 @@ export default function SerialList({ serials }: Props) {
           {filtered.map((serial) => (
             <li key={serial.id}>
               <Link
-                href={`/${titleToSlug(serial.title)}`}
+                href={`/${serial.slug}`}
                 className="block rounded-lg border px-4 py-3 hover:bg-gray-50 transition-colors"
               >
                 <span className="font-medium">{serial.title}</span>
