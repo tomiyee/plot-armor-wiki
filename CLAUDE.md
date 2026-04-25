@@ -46,7 +46,7 @@ Database, ORM, and home page UI layers are implemented. Auth, Search, and Markdo
 | Search | PostgreSQL full-text search (tsvector) |
 | Markdown | `@uiw/react-md-editor` (edit) + `react-markdown` (render) |
 | Styling | Tailwind CSS v4 |
-| UI components | Shadcn UI (Button, Input) |
+| UI components | Shadcn UI (Button, Input, Dialog) |
 | Hosting | Vercel |
 
 ### Core data pattern: SCD Type 2 versioning
@@ -84,7 +84,8 @@ First-time visitors on any serial default to chapter 1 and see a callout prompti
 - `src/db/schema.ts` — Drizzle ORM table definitions; source of truth for the data model.
 - `src/db/index.ts` — Drizzle client (postgres.js driver); exports `db` for use in Server Components and API routes.
 - `drizzle.config.ts` — Drizzle Kit config; reads `DATABASE_URL` from `.env.local`.
-- `src/app/layout.tsx` — root layout with Geist fonts, Tailwind base, and `<Navbar>`.
+- `src/app/layout.tsx` — root layout with Geist fonts, Tailwind base, `<Navbar>`, and a full-height `overflow-y-auto` wrapper that prevents scrollbar layout shift when dialogs open.
+- `src/components/ui/dialog.tsx` — controlled Dialog component (`isOpen`/`onClose` props) with `DialogHeader`, `DialogBody`, `DialogFooter`, `DialogTitle`, `DialogDescription`, and `DialogClose`.
 - `src/app/page.tsx` — home page; async Server Component that fetches all serials and passes them to `<SerialList>`.
 - `src/app/new/page.tsx` — serial creation form (title, description, authors, splash art URL).
 - `src/app/new/actions.ts` — `createSerial` Server Action; inserts into `serials` and `serial_authors`, redirects to `/{slug}`.

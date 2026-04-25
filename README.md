@@ -80,6 +80,7 @@ For the full design spec, see [spec.md](spec.md).
 | Auth | Auth.js (NextAuth v5) |
 | Search | PostgreSQL full-text search |
 | Styling | Tailwind CSS v4 |
+| UI components | Shadcn UI |
 | Hosting | Vercel |
 
 Rationale for each decision is in [spec.md § Tech Stack](spec.md#tech-stack).

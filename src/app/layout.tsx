@@ -29,9 +29,11 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <Navbar />
-        {children}
+      <body className="h-full overflow-hidden" suppressHydrationWarning>
+        <div className="h-full overflow-y-auto flex flex-col">
+          <Navbar />
+          {children}
+        </div>
       </body>
     </html>
   );
