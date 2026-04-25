@@ -40,6 +40,16 @@ const buttonVariants = cva(
   }
 )
 
+/**
+ * Design-system button backed by Base UI. Supports multiple visual variants and
+ * sizes via `variant` and `size` props.
+ *
+ * @example
+ * <Button>Save</Button>
+ * <Button variant="outline" size="sm">Cancel</Button>
+ * <Button variant="destructive">Delete</Button>
+ * <Button variant="ghost" size="icon"><TrashIcon /></Button>
+ */
 function Button({
   className,
   variant = "default",

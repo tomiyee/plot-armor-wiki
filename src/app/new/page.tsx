@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createSerial } from './actions';
 import { Input } from '@/components/ui/input';
+import { Text } from '@/components/ui/text';
 
 export default function NewSerialPage() {
   const [authors, setAuthors] = useState<string[]>(['']);
@@ -22,17 +23,16 @@ export default function NewSerialPage() {
   return (
     <main className="flex flex-col items-center px-6 py-16">
       <div className="w-full max-w-lg">
-        <h1 className="text-2xl font-bold mb-8">Create a new wiki</h1>
+        <Text variant="h1" className="text-2xl mb-8">Create a new wiki</Text>
         <form action={createSerial} className="flex flex-col gap-5">
           {/* Title */}
           <div className="flex flex-col gap-1">
-            <label htmlFor="title" className="text-sm font-medium">
+            <Text as="label" variant="label" htmlFor="title">
               Title <span className="text-red-500">*</span>
-            </label>
+            </Text>
             <Input
               id="title"
               name="title"
-              type="text"
               required
               placeholder="e.g. One Piece"
             />
@@ -40,9 +40,9 @@ export default function NewSerialPage() {
 
           {/* Description */}
           <div className="flex flex-col gap-1">
-            <label htmlFor="description" className="text-sm font-medium">
+            <Text as="label" variant="label" htmlFor="description">
               Description
-            </label>
+            </Text>
             <textarea
               id="description"
               name="description"
@@ -54,11 +54,10 @@ export default function NewSerialPage() {
 
           {/* Authors */}
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">Authors</span>
+            <Text variant="label">Authors</Text>
             {authors.map((author, i) => (
               <div key={i} className="flex items-center gap-2">
                 <Input
-                  type="text"
                   name="authors"
                   value={author}
                   onChange={(e) => updateAuthor(i, e.target.value)}
@@ -87,9 +86,9 @@ export default function NewSerialPage() {
 
           {/* Splash art URL */}
           <div className="flex flex-col gap-1">
-            <label htmlFor="splashArtUrl" className="text-sm font-medium">
+            <Text as="label" variant="label" htmlFor="splashArtUrl">
               Splash art URL <span className="text-gray-400">(optional)</span>
-            </label>
+            </Text>
             <Input
               id="splashArtUrl"
               name="splashArtUrl"

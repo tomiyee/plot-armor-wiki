@@ -2,7 +2,16 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+/**
+ * Styled text input defaulting to `type="text"`. Passes all native `<input>`
+ * props through, including `name` for use in Server Action forms.
+ *
+ * @example
+ * <Input name="title" placeholder="e.g. One Piece" required />
+ * <Input type="email" name="email" placeholder="you@example.com" />
+ * <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} />
+ */
+function Input({ className, type = "text", ...props }: React.ComponentProps<"input">) {
   return (
     <input
       type={type}

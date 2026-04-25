@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { addChapter, addVolume } from './actions';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Text } from '@/components/ui/text';
 
 interface Props {
   params: Promise<{ serial: string }>;
@@ -59,27 +60,25 @@ export default async function SerialPage({ params }: Props) {
       <div className="w-full max-w-2xl flex flex-col gap-4">
         {/* Serial header */}
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold">{serial.title}</h1>
+          <Text variant="h1">{serial.title}</Text>
           {authors.length > 0 && (
-            <p className="text-sm text-gray-500">
-              {authors.map((a) => a.name).join(', ')}
-            </p>
+            <Text variant="faint" muted>{authors.map((a) => a.name).join(', ')}</Text>
           )}
           {serial.description && (
-            <p className="text-base text-gray-700 mt-1">{serial.description}</p>
+            <Text variant="body" className="mt-1">{serial.description}</Text>
           )}
         </div>
 
         {/* Volume and chapter list */}
         <section className="flex flex-col gap-4 mt-4">
-          <h2 className="text-xl font-semibold">Volumes &amp; Chapters</h2>
+          <Text variant="h2">Volumes &amp; Chapters</Text>
           {volumeList.length > 0 ? (
             <div className="flex flex-col gap-5">
               {volumeList.map((volume) => {
                 const vChapters = chaptersByVolume.get(volume.id) ?? [];
                 return (
                   <div key={volume.id} className="flex flex-col gap-2">
-                    <h3 className="text-base font-semibold">{volume.displayName}</h3>
+                    <Text variant="h4">{volume.displayName}</Text>
                     {vChapters.length > 0 ? (
                       <ol className="flex flex-col gap-1 pl-3 border-l-2 border-gray-100">
                         {vChapters.map((chapter) => (
@@ -88,34 +87,33 @@ export default async function SerialPage({ params }: Props) {
                             className="flex items-center justify-between rounded-md px-3 py-2 text-sm"
                           >
                             <span>{chapter.displayName}</span>
-                            <span className="text-gray-400">#{chapter.idx}</span>
+                            <Text as="span" variant="faint">#{chapter.idx}</Text>
                           </li>
                         ))}
                       </ol>
                     ) : (
-                      <p className="text-sm text-gray-400 pl-3">No chapters yet.</p>
+                      <Text variant="faint" className="pl-3">No chapters yet.</Text>
                     )}
                   </div>
                 );
               })}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No volumes yet. Add a volume to get started.</p>
+            <Text variant="faint" muted>No volumes yet. Add a volume to get started.</Text>
           )}
         </section>
 
         {/* Add volume form */}
         <section className="flex flex-col gap-3 mt-2">
-          <h3 className="text-lg font-semibold">Add volume</h3>
+          <Text variant="h3">Add volume</Text>
           <form action={addVolumeForSerial} className="flex gap-3 items-end">
             <div className="flex flex-col gap-1 flex-1">
-              <label htmlFor="volumeDisplayName" className="text-sm font-medium">
+              <Text as="label" variant="label" htmlFor="volumeDisplayName">
                 Display name <span className="text-red-500">*</span>
-              </label>
+              </Text>
               <Input
                 id="volumeDisplayName"
                 name="displayName"
-                type="text"
                 required
                 placeholder="e.g. Volume 1"
               />
@@ -131,15 +129,15 @@ export default async function SerialPage({ params }: Props) {
 
         {/* Add chapter form */}
         <section className="flex flex-col gap-3 mt-2">
-          <h3 className="text-lg font-semibold">Add chapter</h3>
+          <Text variant="h3">Add chapter</Text>
           {volumeList.length === 0 ? (
-            <p className="text-sm text-gray-500">Add a volume before adding chapters.</p>
+            <Text variant="faint" muted>Add a volume before adding chapters.</Text>
           ) : (
             <form action={addChapterForSerial} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label htmlFor="volumeId" className="text-sm font-medium">
+                <Text as="label" variant="label" htmlFor="volumeId">
                   Volume <span className="text-red-500">*</span>
-                </label>
+                </Text>
                 <Select
                   id="volumeId"
                   name="volumeId"
@@ -152,13 +150,12 @@ export default async function SerialPage({ params }: Props) {
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label htmlFor="chapterDisplayName" className="text-sm font-medium">
+                <Text as="label" variant="label" htmlFor="chapterDisplayName">
                   Display name <span className="text-red-500">*</span>
-                </label>
+                </Text>
                 <Input
                   id="chapterDisplayName"
                   name="displayName"
-                  type="text"
                   required
                   placeholder="e.g. Chapter 1"
                 />
