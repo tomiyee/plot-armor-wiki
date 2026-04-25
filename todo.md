@@ -61,14 +61,14 @@ Steps 8 → 9 → 10 → 12 are a strict sequential chain.
 - ~~No data fetching in this step.~~
 - Commit: `feat: add home page shell with navbar and search bar`
 
-## Step 4 — Serial creation and listing
+## ~~Step 4 — Serial creation and listing~~ ✓
 
-- Create `app/new/page.tsx` — a form to create a serial:
-  - Fields: title (required), description (textarea), authors (repeatable text input), splash art URL (optional).
-  - Submit via a Server Action that inserts into `serials` and `serial_authors`, then redirects to `/{serial-slug}`.
-  - Use the serial title lowercased and hyphenated as the URL slug (store it or derive it — pick one approach and be consistent).
-- Update `app/page.tsx` to fetch and list all serials from the DB below the search bar.
-- Wire the search bar to filter the displayed list client-side (no FTS yet).
+- ~~Create `app/new/page.tsx` — a form to create a serial:~~
+  - ~~Fields: title (required), description (textarea), authors (repeatable text input), splash art URL (optional).~~
+  - ~~Submit via a Server Action that inserts into `serials` and `serial_authors`, then redirects to `/{serial-slug}`.~~
+  - ~~Use the serial title lowercased and hyphenated as the URL slug (store it or derive it — pick one approach and be consistent).~~
+- ~~Update `app/page.tsx` to fetch and list all serials from the DB below the search bar.~~
+- ~~Wire the search bar to filter the displayed list client-side (no FTS yet).~~
 - Commit: `feat: serial creation form and listing on home page`
 
 ## Step 5 — Chapter management
