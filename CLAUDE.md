@@ -85,6 +85,10 @@ First-time visitors on any serial default to chapter 1 and see a callout prompti
 - `src/db/index.ts` — Drizzle client (postgres.js driver); exports `db` for use in Server Components and API routes.
 - `drizzle.config.ts` — Drizzle Kit config; reads `DATABASE_URL` from `.env.local`.
 - `src/app/layout.tsx` — root layout with Geist fonts, Tailwind base, and `<Navbar>`.
-- `src/app/page.tsx` — home page with search bar and "Create wiki" button.
+- `src/app/page.tsx` — home page; async Server Component that fetches all serials and passes them to `<SerialList>`.
+- `src/app/new/page.tsx` — serial creation form (title, description, authors, splash art URL).
+- `src/app/new/actions.ts` — `createSerial` Server Action; inserts into `serials` and `serial_authors`, redirects to `/{slug}`.
 - `src/components/Navbar.tsx` — shared navbar with site logo and auth placeholder.
+- `src/components/SerialList.tsx` — Client Component owning the search input; filters serial list client-side by title.
+- `src/lib/slug.ts` — `titleToSlug` utility; slug is derived at runtime from the title, not stored.
 - `src/lib/utils.ts` — `cn()` utility for Tailwind class merging (Shadcn UI helper).
