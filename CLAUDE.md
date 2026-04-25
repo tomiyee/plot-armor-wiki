@@ -56,7 +56,7 @@ Database, ORM, and home page UI layers are implemented. Auth, Search, and Markdo
 | Search | PostgreSQL full-text search (tsvector) |
 | Markdown | `@uiw/react-md-editor` (edit) + `react-markdown` (render) |
 | Styling | Tailwind CSS v4 |
-| UI components | Shadcn UI (Button, Input, Dialog) |
+| UI components | Shadcn UI (Button, Input, Select, Dialog) + custom Text |
 | Hosting | Vercel |
 
 ### Core data pattern: SCD Type 2 versioning
@@ -95,6 +95,9 @@ First-time visitors on any serial default to chapter 1 and see a callout prompti
 - `src/db/index.ts` — Drizzle client (postgres.js driver); exports `db` for use in Server Components and API routes.
 - `drizzle.config.ts` — Drizzle Kit config; reads `DATABASE_URL` from `.env.local`.
 - `src/app/layout.tsx` — root layout with Geist fonts, Tailwind base, `<Navbar>`, and a full-height `overflow-y-auto` wrapper that prevents scrollbar layout shift when dialogs open.
+- `src/components/ui/input.tsx` — Shadcn-style `<Input>` wrapping `<input>`; defaults `type` to `"text"`. Use this instead of bare `<input>`.
+- `src/components/ui/select.tsx` — generic `<Select<T>>` backed by native `<select>`; accepts `options: Option<T>[]` with optional grouping via `children` and per-option `disabled`. Client Component. Use this instead of bare `<select>`.
+- `src/components/ui/text.tsx` — `<Text>` typography component; accepts a `variant` prop (`h1`–`h4`, `body`, `muted`, `faint`, `label`) and an optional `as` prop to override the rendered element. Use this instead of bare heading/paragraph/label elements.
 - `src/components/ui/dialog.tsx` — controlled Dialog component (`isOpen`/`onClose` props) with `DialogHeader`, `DialogBody`, `DialogFooter`, `DialogTitle`, `DialogDescription`, and `DialogClose`.
 - `src/app/page.tsx` — home page; async Server Component that fetches all serials and passes them to `<SerialList>`.
 - `src/app/new/page.tsx` — serial creation form (title, description, authors, splash art URL).
@@ -105,3 +108,15 @@ First-time visitors on any serial default to chapter 1 and see a callout prompti
 - `src/components/SerialList.tsx` — Client Component owning the search input; filters serial list client-side by title.
 - `src/lib/slug.ts` — `titleToSlug` utility; slug is computed at creation time and stored in `serials.slug`.
 - `src/lib/utils.ts` — `cn()` utility for Tailwind class merging (Shadcn UI helper).
+
+### UI component conventions
+
+Always use the design-system components in `src/components/ui/` instead of bare HTML elements:
+
+| Instead of | Use |
+|---|---|
+| `<input>` | `<Input>` from `@/components/ui/input` |
+| `<select>` | `<Select>` from `@/components/ui/select` |
+| `<h1>`–`<h4>`, `<p>`, `<label>`, `<span>` (text) | `<Text variant="…">` from `@/components/ui/text` |
+
+`<Text>` variants and their default elements: `h1` → `<h1>`, `h2` → `<h2>`, `h3` → `<h3>`, `h4` → `<h4>`, `body` → `<p>` (gray-700), `faint` → `<p>` (gray-400), `label` → `<span>`. Pass `muted` (boolean) to override any variant's text color to gray-500. Override the rendered element with `as` (e.g. `<Text as="label" variant="label" htmlFor="…">`). One-off spacing or layout tweaks go in `className`.

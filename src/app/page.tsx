@@ -2,13 +2,14 @@ import Link from 'next/link';
 import { db } from '@/db/index';
 import { serials } from '@/db/schema';
 import SerialList from '@/components/SerialList';
+import { Text } from '@/components/ui/text';
 
 export default async function Home() {
   const allSerials = await db.select().from(serials);
 
   return (
     <main className="flex flex-col items-center px-6 py-16 gap-6">
-      <h1 className="text-3xl font-bold">Find a wiki</h1>
+      <Text variant="h1">Find a wiki</Text>
       <SerialList serials={allSerials} />
       <Link
         href="/new"

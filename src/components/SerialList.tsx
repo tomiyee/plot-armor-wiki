@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Input } from '@/components/ui/input';
+import { Text } from '@/components/ui/text';
 
 type Serial = {
   id: number;
@@ -26,12 +28,12 @@ export default function SerialList({ serials }: Props) {
 
   return (
     <>
-      <input
+      <Input
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search serials…"
-        className="w-full max-w-md rounded-lg border px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-black"
+        className="w-full max-w-md"
       />
       {filtered.length > 0 ? (
         <ul className="w-full max-w-md flex flex-col gap-3 mt-2">
@@ -43,18 +45,18 @@ export default function SerialList({ serials }: Props) {
               >
                 <span className="font-medium">{serial.title}</span>
                 {serial.description && (
-                  <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">
+                  <Text muted className="mt-0.5 line-clamp-2">
                     {serial.description}
-                  </p>
+                  </Text>
                 )}
               </Link>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-gray-500 mt-2">
+        <Text muted className="mt-2">
           {query.trim() ? 'No serials match your search.' : 'No wikis yet.'}
-        </p>
+        </Text>
       )}
     </>
   );

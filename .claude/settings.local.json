@@ -11,8 +11,11 @@
       "Bash(npm install *)",
       "Bash(npm uninstall *)",
       "Bash(npx shadcn@latest *)",
-      "Bash(npx tsc *)",
-      "Bash(npx drizzle-kit *)"
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(git stash *)",
+      "Bash(git rm *)",
+      "Bash(pnpm lint *)"
     ]
   }
 }
