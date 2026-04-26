@@ -8,20 +8,7 @@ import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-
-const CHAPTER_TYPE_OPTIONS = [
-  { label: 'Chapter', value: 'Chapter' },
-  { label: 'Episode', value: 'Episode' },
-  { label: 'Issue', value: 'Issue' },
-  { label: 'Part', value: 'Part' },
-] as const;
-
-const VOLUME_TYPE_OPTIONS = [
-  { label: 'Volume', value: 'Volume' },
-  { label: 'Season', value: 'Season' },
-  { label: 'Arc', value: 'Arc' },
-  { label: 'Book', value: 'Book' },
-] as const;
+import { CHAPTER_TYPE_OPTIONS, VOLUME_TYPE_OPTIONS } from '@/lib/serial-types';
 
 export default function NewSerialPage() {
   const [authors, setAuthors] = useState<string[]>(['']);
@@ -111,7 +98,7 @@ export default function NewSerialPage() {
               <Select
                 id="volumeType"
                 name="volumeType"
-                options={[...VOLUME_TYPE_OPTIONS]}
+                options={VOLUME_TYPE_OPTIONS}
                 defaultValue="Volume"
               />
             </Box>
@@ -120,7 +107,7 @@ export default function NewSerialPage() {
               <Select
                 id="chapterType"
                 name="chapterType"
-                options={[...CHAPTER_TYPE_OPTIONS]}
+                options={CHAPTER_TYPE_OPTIONS}
                 defaultValue="Chapter"
               />
             </Box>

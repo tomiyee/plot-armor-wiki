@@ -80,14 +80,14 @@ Auth (Step 16) and progress sync (Step 17) are intentionally deferred until all 
   - ~~A form to add a new chapter (display name only; index auto-assigned as max existing index + 1). Submit via Server Action inserting into `chapters`.~~
 - Commit: `feat: serial detail page with chapter list and add-chapter form`
 
-## Step 5b — Volume and chapter reordering (drag and drop)
+## ~~Step 5b — Volume and chapter reordering (drag and drop)~~ ✓
 
-- On the serial detail page, make both the volume list and each volume's chapter list reorderable via drag and drop.
-- Use `@dnd-kit/core` and `@dnd-kit/sortable` (or equivalent) — no native HTML5 drag API, which lacks touch support.
-- **Volume reordering:** dragging a volume to a new position updates `volumes.idx` for all volumes in the serial via a Server Action; chapters are not renumbered.
-- **Chapter reordering within a volume:** dragging a chapter to a new position within its volume reassigns `chapters.idx` globally so the serial-level linear order remains strictly increasing (all chapters of earlier volumes precede later ones).
-- Both Server Actions must update all affected rows in a single transaction to avoid partial reorder states.
-- No optimistic UI required for now — revalidate the page after each action completes.
+- ~~On the serial detail page, make both the volume list and each volume's chapter list reorderable via drag and drop.~~
+- ~~Use `@dnd-kit/core` and `@dnd-kit/sortable` (or equivalent) — no native HTML5 drag API, which lacks touch support.~~
+- ~~**Volume reordering:** dragging a volume to a new position updates `volumes.idx` for all volumes in the serial via a Server Action; chapters are not renumbered.~~
+- ~~**Chapter reordering within a volume:** dragging a chapter to a new position within its volume reassigns `chapters.idx` globally so the serial-level linear order remains strictly increasing (all chapters of earlier volumes precede later ones).~~
+- ~~Both Server Actions must update all affected rows in a single transaction to avoid partial reorder states.~~
+- ~~No optimistic UI required for now — revalidate the page after each action completes.~~
 - Commit: `feat: drag-and-drop reordering for volumes and chapters`
 
 ## Step 6 — Schema management

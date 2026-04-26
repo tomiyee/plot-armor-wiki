@@ -37,20 +37,7 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-
-const CHAPTER_TYPE_OPTIONS = [
-  { label: 'Chapter', value: 'Chapter' },
-  { label: 'Episode', value: 'Episode' },
-  { label: 'Issue', value: 'Issue' },
-  { label: 'Part', value: 'Part' },
-] as const;
-
-const VOLUME_TYPE_OPTIONS = [
-  { label: 'Volume', value: 'Volume' },
-  { label: 'Season', value: 'Season' },
-  { label: 'Arc', value: 'Arc' },
-  { label: 'Book', value: 'Book' },
-] as const;
+import { CHAPTER_TYPE_OPTIONS, VOLUME_TYPE_OPTIONS } from '@/lib/serial-types';
 
 interface Chapter {
   id: number;
@@ -279,6 +266,7 @@ function SortableVolumeItem({
   onCancelRenameChapter: () => void;
   onDeleteChapter: (id: number, name: string) => void;
   onChapterDragEnd: (volumeId: number, event: DragEndEvent) => void;
+  chapterSensors: ReturnType<typeof useSensors>;
   onAddChapterClick: (volumeId: number) => void;
   onAddChapterSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   onCancelAddChapter: () => void;
@@ -295,12 +283,6 @@ function SortableVolumeItem({
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : undefined,
   };
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
 
   const isAddingChapterHere = addingChapterToVolumeId === volume.id;
 
@@ -354,7 +336,7 @@ function SortableVolumeItem({
       {/* Chapter list with inner sortable context */}
       {vChapters.length > 0 ? (
         <DndContext
-          sensors={sensors}
+          sensors={chapterSensors}
           collisionDetection={closestCenter}
           onDragEnd={(event) => onChapterDragEnd(volume.id, event)}
         >
@@ -560,10 +542,7 @@ export function SerialEditor({
     });
   }
 
-  const dialogTitle =
-    pendingDelete?.type === 'volume'
-      ? `Delete "${pendingDelete.name}"?`
-      : `Delete "${pendingDelete?.name}"?`;
+  const dialogTitle = `Delete "${pendingDelete?.name}"?`;
 
   const dialogBody =
     pendingDelete?.type === 'volume'
@@ -598,7 +577,7 @@ export function SerialEditor({
             <Label htmlFor="volumeType">Volume type</Label>
             <Select
               id="volumeType"
-              options={[...VOLUME_TYPE_OPTIONS]}
+              options={VOLUME_TYPE_OPTIONS}
               value={currentVolumeType}
               onChange={(val) => {
                 setCurrentVolumeType(val);
@@ -610,7 +589,7 @@ export function SerialEditor({
             <Label htmlFor="chapterType">Chapter type</Label>
             <Select
               id="chapterType"
-              options={[...CHAPTER_TYPE_OPTIONS]}
+              options={CHAPTER_TYPE_OPTIONS}
               value={currentChapterType}
               onChange={(val) => {
                 setCurrentChapterType(val);
@@ -651,6 +630,7 @@ export function SerialEditor({
                   onCancelRenameChapter={() => setRenamingChapterId(null)}
                   onDeleteChapter={(id, name) => setPendingDelete({ type: 'chapter', id, name })}
                   onChapterDragEnd={handleChapterDragEnd}
+                  chapterSensors={volumeSensors}
                   onAddChapterClick={(volId) => { setAddingChapterToVolumeId(volId); setAddingVolume(false); }}
                   onAddChapterSubmit={handleAddChapterSubmit}
                   onCancelAddChapter={() => setAddingChapterToVolumeId(null)}

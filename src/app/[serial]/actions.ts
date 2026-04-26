@@ -3,6 +3,7 @@
 import { db } from '@/db/index';
 import { serials, volumes, chapters } from '@/db/schema';
 import { and, asc, eq, gte, gt, inArray, lte, max, sql } from 'drizzle-orm';
+import { parseChapterType, parseVolumeType } from '@/lib/serial-types';
 
 export async function deleteChapter(serialId: number, formData: FormData) {
   const chapterIdRaw = formData.get('chapterId');
@@ -107,22 +108,9 @@ export async function renameChapter(_serialId: number, formData: FormData) {
   await db.update(chapters).set({ displayName: displayName.trim() }).where(eq(chapters.id, chapterId));
 }
 
-const CHAPTER_TYPES = ['Chapter', 'Episode', 'Issue', 'Part'] as const;
-const VOLUME_TYPES = ['Volume', 'Season', 'Arc', 'Book'] as const;
-type ChapterType = (typeof CHAPTER_TYPES)[number];
-type VolumeType = (typeof VOLUME_TYPES)[number];
-
 export async function updateSerialTypes(serialId: number, formData: FormData) {
-  const chapterTypeRaw = formData.get('chapterType');
-  const volumeTypeRaw = formData.get('volumeType');
-
-  const chapterType: ChapterType = CHAPTER_TYPES.includes(chapterTypeRaw as ChapterType)
-    ? (chapterTypeRaw as ChapterType)
-    : 'Chapter';
-  const volumeType: VolumeType = VOLUME_TYPES.includes(volumeTypeRaw as VolumeType)
-    ? (volumeTypeRaw as VolumeType)
-    : 'Volume';
-
+  const chapterType = parseChapterType(formData.get('chapterType'));
+  const volumeType = parseVolumeType(formData.get('volumeType'));
   await db.update(serials).set({ chapterType, volumeType }).where(eq(serials.id, serialId));
 }
 
@@ -164,7 +152,6 @@ export async function reorderChapters(
   if (orderedChapterIds.length === 0) return;
 
   await db.transaction(async (tx) => {
-    // Fetch the target volume to know its position among all volumes in the serial
     const [targetVolume] = await tx
       .select({ idx: volumes.idx })
       .from(volumes)
@@ -172,8 +159,8 @@ export async function reorderChapters(
 
     if (!targetVolume) throw new Error('Volume not found');
 
-    // The global idx slot right before this volume's chapters begins.
-    // That is the max idx among all chapters in volumes that come before this one.
+    // baseIdx is the highest global idx among all chapters that precede this volume,
+    // so we can start numbering this volume's chapters immediately after.
     const precedingResult = await tx
       .select({ maxIdx: max(chapters.idx) })
       .from(chapters)
@@ -182,7 +169,6 @@ export async function reorderChapters(
 
     const baseIdx = precedingResult[0]?.maxIdx ?? 0;
 
-    // Reassign idx for each chapter in the new order, starting at baseIdx + 1
     for (let i = 0; i < orderedChapterIds.length; i++) {
       await tx
         .update(chapters)
@@ -190,8 +176,8 @@ export async function reorderChapters(
         .where(eq(chapters.id, orderedChapterIds[i]));
     }
 
-    // Chapters in later volumes must be shifted to follow the last chapter of this volume.
-    // Their relative order among themselves must be preserved, so fetch them ordered by idx.
+    // Re-sequence later volumes so the global idx remains strictly increasing.
+    // Fetch ordered by idx to preserve their relative order.
     const followingChapters = await tx
       .select({ id: chapters.id })
       .from(chapters)

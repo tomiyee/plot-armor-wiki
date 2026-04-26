@@ -4,26 +4,7 @@ import { redirect } from 'next/navigation';
 import { db } from '@/db/index';
 import { serials, serialAuthors } from '@/db/schema';
 import { titleToSlug } from '@/lib/slug';
-
-const VALID_CHAPTER_TYPES = ['Chapter', 'Episode', 'Issue', 'Part'] as const;
-const VALID_VOLUME_TYPES = ['Volume', 'Season', 'Arc', 'Book'] as const;
-
-type ChapterType = (typeof VALID_CHAPTER_TYPES)[number];
-type VolumeType = (typeof VALID_VOLUME_TYPES)[number];
-
-function parseChapterType(value: unknown): ChapterType {
-  if (typeof value === 'string' && (VALID_CHAPTER_TYPES as readonly string[]).includes(value)) {
-    return value as ChapterType;
-  }
-  return 'Chapter';
-}
-
-function parseVolumeType(value: unknown): VolumeType {
-  if (typeof value === 'string' && (VALID_VOLUME_TYPES as readonly string[]).includes(value)) {
-    return value as VolumeType;
-  }
-  return 'Volume';
-}
+import { parseChapterType, parseVolumeType } from '@/lib/serial-types';
 
 export async function createSerial(formData: FormData) {
   const title = formData.get('title');

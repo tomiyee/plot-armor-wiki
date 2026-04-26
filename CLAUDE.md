@@ -103,12 +103,14 @@ First-time visitors on any serial default to chapter 1 and see a callout prompti
 - `src/app/new/page.tsx` — serial creation form (title, description, authors, splash art URL, volume type, chapter type).
 - `src/app/new/actions.ts` — `createSerial` Server Action; inserts into `serials` and `serial_authors` (storing the computed slug, chapter type, and volume type), redirects to `/{slug}`.
 - `src/app/[serial]/page.tsx` — serial detail page; resolves serial via `WHERE slug = ?`, lists chapters grouped by volume, delegates editing to `<SerialEditor>`.
-- `src/app/[serial]/actions.ts` — `addVolume`, `addChapter`, and `updateSerialTypes` Server Actions; `addChapter` reads `volumeId` from the form and auto-assigns a global `idx` (max across all volumes + 1); `updateSerialTypes` updates `chapterType` and `volumeType` on the serial.
-- `src/components/SerialEditor.tsx` — Client Component managing edit mode for the serial's volumes and chapters; in edit mode shows volume/chapter type dropdowns (persisted immediately on change), inline rename forms, add-volume/chapter forms, and delete confirmations.
+- `src/app/[serial]/actions.ts` — `addVolume`, `addChapter`, `updateSerialTypes`, `reorderVolumes`, and `reorderChapters` Server Actions; `reorderChapters` re-sequences global `idx` values for all affected chapters in a single transaction to maintain the serial-level linear order.
+- `src/components/SerialEditor.tsx` — Client Component managing edit mode for the serial's volumes and chapters; in edit mode shows volume/chapter type dropdowns (persisted immediately on change), inline rename forms, add-volume/chapter forms, delete confirmations, and drag-and-drop reordering via `@dnd-kit`.
 - `src/components/Navbar.tsx` — shared navbar with site logo and auth placeholder.
 - `src/components/SerialList.tsx` — Client Component owning the search input; filters serial list client-side by title.
+- `src/lib/serial-types.ts` — shared `ChapterType`/`VolumeType` types, `CHAPTER_TYPES`/`VOLUME_TYPES` arrays, `parseChapterType`/`parseVolumeType` helpers, and `CHAPTER_TYPE_OPTIONS`/`VOLUME_TYPE_OPTIONS` for `<Select>` components. Single source of truth — import from here instead of duplicating in action files or components.
 - `src/lib/slug.ts` — `titleToSlug` utility; slug is computed at creation time and stored in `serials.slug`.
 - `src/lib/utils.ts` — `cn()` utility for Tailwind class merging (Shadcn UI helper).
+- `src/hooks/usePersistedStore.ts` — `useState`-compatible hook backed by `localStorage`; built on `useSyncExternalStore` for SSR safety and cross-tab sync via the native `storage` event.
 
 ### UI component conventions
 
