@@ -1,8 +1,8 @@
 'use server';
 
 import { db } from '@/db/index';
-import { serials, volumes, chapters } from '@/db/schema';
-import { and, eq, gte, gt, inArray, lte, max, sql } from 'drizzle-orm';
+import { serials, volumes, chapters, pageSchemas, schemaSections, schemaFloaterRows } from '@/db/schema';
+import { and, eq, gte, gt, inArray, isNull, lte, max, sql } from 'drizzle-orm';
 
 export async function deleteChapter(serialId: number, formData: FormData) {
   const chapterIdRaw = formData.get('chapterId');
@@ -169,4 +169,176 @@ export async function addChapter(serialId: number, formData: FormData) {
     displayName: displayName.trim(),
     idx: newIdx,
   });
+}
+
+// ─── Schema management ────────────────────────────────────────────────────────
+
+export async function addSchema(serialId: number, formData: FormData) {
+  const name = formData.get('name');
+  const hasFloaterRaw = formData.get('hasFloater');
+
+  if (!name || typeof name !== 'string' || name.trim() === '') {
+    throw new Error('Schema name is required');
+  }
+
+  await db.insert(pageSchemas).values({
+    serialId,
+    name: name.trim(),
+    hasFloater: hasFloaterRaw === 'true',
+  });
+}
+
+export async function deleteSchema(_serialId: number, formData: FormData) {
+  const schemaIdRaw = formData.get('schemaId');
+  if (!schemaIdRaw || typeof schemaIdRaw !== 'string') throw new Error('Schema ID is required');
+
+  const schemaId = parseInt(schemaIdRaw, 10);
+  if (isNaN(schemaId)) throw new Error('Invalid schema ID');
+
+  await db.delete(pageSchemas).where(eq(pageSchemas.id, schemaId));
+}
+
+export async function renameSchema(_serialId: number, formData: FormData) {
+  const schemaIdRaw = formData.get('schemaId');
+  const name = formData.get('name');
+
+  if (!schemaIdRaw || typeof schemaIdRaw !== 'string') throw new Error('Schema ID is required');
+  if (!name || typeof name !== 'string' || name.trim() === '') throw new Error('Name is required');
+
+  const schemaId = parseInt(schemaIdRaw, 10);
+  if (isNaN(schemaId)) throw new Error('Invalid schema ID');
+
+  await db.update(pageSchemas).set({ name: name.trim() }).where(eq(pageSchemas.id, schemaId));
+}
+
+// ─── Section management ───────────────────────────────────────────────────────
+
+export async function addSection(_serialId: number, formData: FormData) {
+  const schemaIdRaw = formData.get('schemaId');
+  const name = formData.get('name');
+
+  if (!schemaIdRaw || typeof schemaIdRaw !== 'string') throw new Error('Schema ID is required');
+  if (!name || typeof name !== 'string' || name.trim() === '') throw new Error('Section name is required');
+
+  const schemaId = parseInt(schemaIdRaw, 10);
+  if (isNaN(schemaId)) throw new Error('Invalid schema ID');
+
+  const [{ maxOrder }] = await db
+    .select({ maxOrder: max(schemaSections.displayOrder) })
+    .from(schemaSections)
+    .where(and(eq(schemaSections.schemaId, schemaId), isNull(schemaSections.deletedAt)));
+
+  await db.insert(schemaSections).values({
+    schemaId,
+    name: name.trim(),
+    displayOrder: (maxOrder ?? 0) + 1,
+  });
+}
+
+export async function deleteSection(_serialId: number, formData: FormData) {
+  const sectionIdRaw = formData.get('sectionId');
+  if (!sectionIdRaw || typeof sectionIdRaw !== 'string') throw new Error('Section ID is required');
+
+  const sectionId = parseInt(sectionIdRaw, 10);
+  if (isNaN(sectionId)) throw new Error('Invalid section ID');
+
+  await db
+    .update(schemaSections)
+    .set({ deletedAt: new Date() })
+    .where(eq(schemaSections.id, sectionId));
+}
+
+export async function renameSection(_serialId: number, formData: FormData) {
+  const sectionIdRaw = formData.get('sectionId');
+  const name = formData.get('name');
+
+  if (!sectionIdRaw || typeof sectionIdRaw !== 'string') throw new Error('Section ID is required');
+  if (!name || typeof name !== 'string' || name.trim() === '') throw new Error('Name is required');
+
+  const sectionId = parseInt(sectionIdRaw, 10);
+  if (isNaN(sectionId)) throw new Error('Invalid section ID');
+
+  await db.update(schemaSections).set({ name: name.trim() }).where(eq(schemaSections.id, sectionId));
+}
+
+export async function reorderSections(_serialId: number, formData: FormData) {
+  const orderedIdsRaw = formData.get('orderedIds');
+  if (!orderedIdsRaw || typeof orderedIdsRaw !== 'string') throw new Error('Ordered IDs are required');
+
+  const orderedIds: number[] = JSON.parse(orderedIdsRaw);
+
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      db
+        .update(schemaSections)
+        .set({ displayOrder: index + 1 })
+        .where(eq(schemaSections.id, id))
+    )
+  );
+}
+
+// ─── Floater row management ───────────────────────────────────────────────────
+
+export async function addFloaterRow(_serialId: number, formData: FormData) {
+  const schemaIdRaw = formData.get('schemaId');
+  const label = formData.get('label');
+
+  if (!schemaIdRaw || typeof schemaIdRaw !== 'string') throw new Error('Schema ID is required');
+  if (!label || typeof label !== 'string' || label.trim() === '') throw new Error('Label is required');
+
+  const schemaId = parseInt(schemaIdRaw, 10);
+  if (isNaN(schemaId)) throw new Error('Invalid schema ID');
+
+  const [{ maxOrder }] = await db
+    .select({ maxOrder: max(schemaFloaterRows.displayOrder) })
+    .from(schemaFloaterRows)
+    .where(and(eq(schemaFloaterRows.schemaId, schemaId), isNull(schemaFloaterRows.deletedAt)));
+
+  await db.insert(schemaFloaterRows).values({
+    schemaId,
+    label: label.trim(),
+    displayOrder: (maxOrder ?? 0) + 1,
+  });
+}
+
+export async function deleteFloaterRow(_serialId: number, formData: FormData) {
+  const rowIdRaw = formData.get('rowId');
+  if (!rowIdRaw || typeof rowIdRaw !== 'string') throw new Error('Row ID is required');
+
+  const rowId = parseInt(rowIdRaw, 10);
+  if (isNaN(rowId)) throw new Error('Invalid row ID');
+
+  await db
+    .update(schemaFloaterRows)
+    .set({ deletedAt: new Date() })
+    .where(eq(schemaFloaterRows.id, rowId));
+}
+
+export async function renameFloaterRow(_serialId: number, formData: FormData) {
+  const rowIdRaw = formData.get('rowId');
+  const label = formData.get('label');
+
+  if (!rowIdRaw || typeof rowIdRaw !== 'string') throw new Error('Row ID is required');
+  if (!label || typeof label !== 'string' || label.trim() === '') throw new Error('Label is required');
+
+  const rowId = parseInt(rowIdRaw, 10);
+  if (isNaN(rowId)) throw new Error('Invalid row ID');
+
+  await db.update(schemaFloaterRows).set({ label: label.trim() }).where(eq(schemaFloaterRows.id, rowId));
+}
+
+export async function reorderFloaterRows(_serialId: number, formData: FormData) {
+  const orderedIdsRaw = formData.get('orderedIds');
+  if (!orderedIdsRaw || typeof orderedIdsRaw !== 'string') throw new Error('Ordered IDs are required');
+
+  const orderedIds: number[] = JSON.parse(orderedIdsRaw);
+
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      db
+        .update(schemaFloaterRows)
+        .set({ displayOrder: index + 1 })
+        .where(eq(schemaFloaterRows.id, id))
+    )
+  );
 }
