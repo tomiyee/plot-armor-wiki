@@ -4,15 +4,15 @@ import { serials, serialAuthors, volumes, chapters, pageSchemas, schemaSections,
 import { and, eq, isNull } from 'drizzle-orm';
 import {
   addChapter, addVolume, deleteChapter, deleteVolume, renameChapter, renameVolume, updateSerialTypes,
-  reorderVolumes, reorderAllChapters,
+  reorderVolumes, reorderAllChapters, updateSerialMetadata,
   addSchema, deleteSchema, renameSchema,
   addSection, deleteSection, renameSection, reorderSections,
   addFloaterRow, deleteFloaterRow, renameFloaterRow, reorderFloaterRows,
 } from './actions';
-import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { SerialEditor } from '@/components/SerialEditor';
 import { SchemaManager } from '@/components/SchemaManager';
+import { SerialMetadataEditor } from '@/components/SerialMetadataEditor';
 
 interface Props {
   params: Promise<{ serial: string }>;
@@ -99,6 +99,7 @@ export default async function SerialPage({ params }: Props) {
     floaterRows: floaterRowsBySchema[schema.id] ?? [],
   }));
 
+  const updateMetadataForSerial = updateSerialMetadata.bind(null, serial.id);
   const addVolumeForSerial = addVolume.bind(null, serial.id);
   const addChapterForSerial = addChapter.bind(null, serial.id);
   const deleteChapterForSerial = deleteChapter.bind(null, serial.id);
@@ -124,16 +125,14 @@ export default async function SerialPage({ params }: Props) {
   return (
     <main className="flex flex-col items-center px-6 py-16 gap-8">
       <Box col className="w-full max-w-2xl gap-4">
-        {/* Serial header */}
-        <Box col className="gap-2">
-          <Text variant="h1">{serial.title}</Text>
-          {authors.length > 0 && (
-            <Text muted>{authors.map((a) => a.name).join(', ')}</Text>
-          )}
-          {serial.description && (
-            <Text className="mt-1">{serial.description}</Text>
-          )}
-        </Box>
+        {/* Serial header with inline edit */}
+        <SerialMetadataEditor
+          title={serial.title}
+          description={serial.description}
+          splashArtUrl={serial.splashArtUrl}
+          authors={authors.map((a) => a.name)}
+          updateMetadataAction={updateMetadataForSerial}
+        />
 
         {/* Volume and chapter list with edit mode */}
         <SerialEditor

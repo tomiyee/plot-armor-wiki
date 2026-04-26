@@ -1,9 +1,11 @@
 'use server';
 
+import { redirect } from 'next/navigation';
 import { db } from '@/db/index';
-import { serials, volumes, chapters, pageSchemas, schemaSections, schemaFloaterRows } from '@/db/schema';
+import { serials, serialAuthors, volumes, chapters, pageSchemas, schemaSections, schemaFloaterRows } from '@/db/schema';
 import { and, asc, eq, gte, gt, inArray, isNull, lte, max, sql } from 'drizzle-orm';
-import { parseChapterType, parseVolumeType } from '@/lib/serial-types';
+import { parseChapterType, parseVolumeType } from '@/lib/serialTypes';
+import { titleToSlug } from '@/lib/slug';
 
 export async function deleteChapter(serialId: number, formData: FormData) {
   const chapterIdRaw = formData.get('chapterId');
@@ -242,6 +244,48 @@ export async function reorderAllChapters(
       }
     }
   });
+}
+
+export async function updateSerialMetadata(serialId: number, formData: FormData) {
+  const title = formData.get('title');
+  if (!title || typeof title !== 'string' || title.trim() === '') {
+    throw new Error('Title is required');
+  }
+
+  const description = formData.get('description');
+  const splashArtUrl = formData.get('splashArtUrl');
+
+  const authorValues = formData.getAll('authors') as string[];
+  const filteredAuthors = authorValues.map((a) => a.trim()).filter((a) => a.length > 0);
+
+  const newSlug = titleToSlug(title.trim());
+
+  await db.update(serials).set({
+    title: title.trim(),
+    slug: newSlug,
+    description:
+      description && typeof description === 'string' && description.trim()
+        ? description.trim()
+        : null,
+    splashArtUrl:
+      splashArtUrl && typeof splashArtUrl === 'string' && splashArtUrl.trim()
+        ? splashArtUrl.trim()
+        : null,
+  }).where(eq(serials.id, serialId));
+
+  // Replace all authors: delete existing rows and insert fresh ones.
+  await db.delete(serialAuthors).where(eq(serialAuthors.serialId, serialId));
+  if (filteredAuthors.length > 0) {
+    await db.insert(serialAuthors).values(
+      filteredAuthors.map((name, i) => ({
+        serialId,
+        name,
+        displayOrder: i + 1,
+      }))
+    );
+  }
+
+  redirect(`/${newSlug}`);
 }
 
 export async function addChapter(serialId: number, formData: FormData) {
