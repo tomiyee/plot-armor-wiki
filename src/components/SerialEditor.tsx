@@ -8,6 +8,8 @@ import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogHeader,
@@ -17,6 +19,20 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+
+const CHAPTER_TYPE_OPTIONS = [
+  { label: 'Chapter', value: 'Chapter' },
+  { label: 'Episode', value: 'Episode' },
+  { label: 'Issue', value: 'Issue' },
+  { label: 'Part', value: 'Part' },
+] as const;
+
+const VOLUME_TYPE_OPTIONS = [
+  { label: 'Volume', value: 'Volume' },
+  { label: 'Season', value: 'Season' },
+  { label: 'Arc', value: 'Arc' },
+  { label: 'Book', value: 'Book' },
+] as const;
 
 interface Chapter {
   id: number;
@@ -40,12 +56,15 @@ interface PendingDelete {
 interface SerialEditorProps {
   volumes: Volume[];
   chaptersByVolume: Record<number, Chapter[]>;
+  chapterType: string;
+  volumeType: string;
   addChapterAction: (formData: FormData) => Promise<void>;
   addVolumeAction: (formData: FormData) => Promise<void>;
   deleteChapterAction: (formData: FormData) => Promise<void>;
   deleteVolumeAction: (formData: FormData) => Promise<void>;
   renameChapterAction: (formData: FormData) => Promise<void>;
   renameVolumeAction: (formData: FormData) => Promise<void>;
+  updateSerialTypesAction: (formData: FormData) => Promise<void>;
 }
 
 function RenameVolumeForm({
@@ -113,15 +132,20 @@ function RenameChapterForm({
 export function SerialEditor({
   volumes,
   chaptersByVolume,
+  chapterType,
+  volumeType,
   addChapterAction,
   addVolumeAction,
   deleteChapterAction,
   deleteVolumeAction,
   renameChapterAction,
   renameVolumeAction,
+  updateSerialTypesAction,
 }: SerialEditorProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [currentChapterType, setCurrentChapterType] = useState(chapterType);
+  const [currentVolumeType, setCurrentVolumeType] = useState(volumeType);
   const [renamingVolumeId, setRenamingVolumeId] = useState<number | null>(null);
   const [renamingChapterId, setRenamingChapterId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
@@ -132,6 +156,13 @@ export function SerialEditor({
   // Refs for "add" forms so we can reset them after submission
   const addVolumeFormRef = useRef<HTMLFormElement>(null);
   const addChapterFormRefs = useRef<Map<number, HTMLFormElement>>(new Map());
+
+  function runTypeUpdate(newVolumeType: string, newChapterType: string) {
+    const fd = new FormData();
+    fd.set('chapterType', newChapterType);
+    fd.set('volumeType', newVolumeType);
+    run(updateSerialTypesAction, fd);
+  }
 
   function run(action: (fd: FormData) => Promise<void>, fd: FormData, onDone?: () => void) {
     startTransition(async () => {
@@ -184,6 +215,35 @@ export function SerialEditor({
           <FontAwesomeIcon icon={faPen} className="h-4 w-4" />
         </button>
       </Box>
+
+      {editing && (
+        <Box className="gap-4">
+          <Box col className="gap-1 flex-1">
+            <Label htmlFor="volumeType">Volume type</Label>
+            <Select
+              id="volumeType"
+              options={[...VOLUME_TYPE_OPTIONS]}
+              value={currentVolumeType}
+              onChange={(val) => {
+                setCurrentVolumeType(val);
+                runTypeUpdate(val, currentChapterType);
+              }}
+            />
+          </Box>
+          <Box col className="gap-1 flex-1">
+            <Label htmlFor="chapterType">Chapter type</Label>
+            <Select
+              id="chapterType"
+              options={[...CHAPTER_TYPE_OPTIONS]}
+              value={currentChapterType}
+              onChange={(val) => {
+                setCurrentChapterType(val);
+                runTypeUpdate(currentVolumeType, val);
+              }}
+            />
+          </Box>
+        </Box>
+      )}
 
       {volumes.length > 0 ? (
         <Box col className="gap-5">

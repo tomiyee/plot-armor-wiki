@@ -100,10 +100,11 @@ First-time visitors on any serial default to chapter 1 and see a callout prompti
 - `src/components/ui/text.tsx` — `<Text>` typography component; accepts a `variant` prop (`h1`–`h4`, `body`, `muted`, `faint`, `label`) and an optional `as` prop to override the rendered element. Use this instead of bare heading/paragraph/label elements.
 - `src/components/ui/dialog.tsx` — controlled Dialog component (`isOpen`/`onClose` props) with `DialogHeader`, `DialogBody`, `DialogFooter`, `DialogTitle`, `DialogDescription`, and `DialogClose`.
 - `src/app/page.tsx` — home page; async Server Component that fetches all serials and passes them to `<SerialList>`.
-- `src/app/new/page.tsx` — serial creation form (title, description, authors, splash art URL).
-- `src/app/new/actions.ts` — `createSerial` Server Action; inserts into `serials` and `serial_authors` (storing the computed slug), redirects to `/{slug}`.
-- `src/app/[serial]/page.tsx` — serial detail page; resolves serial via `WHERE slug = ?`, lists chapters grouped by volume, provides add-volume and add-chapter forms.
-- `src/app/[serial]/actions.ts` — `addVolume` and `addChapter` Server Actions; `addChapter` reads `volumeId` from the form and auto-assigns a global `idx` (max across all volumes + 1).
+- `src/app/new/page.tsx` — serial creation form (title, description, authors, splash art URL, volume type, chapter type).
+- `src/app/new/actions.ts` — `createSerial` Server Action; inserts into `serials` and `serial_authors` (storing the computed slug, chapter type, and volume type), redirects to `/{slug}`.
+- `src/app/[serial]/page.tsx` — serial detail page; resolves serial via `WHERE slug = ?`, lists chapters grouped by volume, delegates editing to `<SerialEditor>`.
+- `src/app/[serial]/actions.ts` — `addVolume`, `addChapter`, and `updateSerialTypes` Server Actions; `addChapter` reads `volumeId` from the form and auto-assigns a global `idx` (max across all volumes + 1); `updateSerialTypes` updates `chapterType` and `volumeType` on the serial.
+- `src/components/SerialEditor.tsx` — Client Component managing edit mode for the serial's volumes and chapters; in edit mode shows volume/chapter type dropdowns (persisted immediately on change), inline rename forms, add-volume/chapter forms, and delete confirmations.
 - `src/components/Navbar.tsx` — shared navbar with site logo and auth placeholder.
 - `src/components/SerialList.tsx` — Client Component owning the search input; filters serial list client-side by title.
 - `src/lib/slug.ts` — `titleToSlug` utility; slug is computed at creation time and stored in `serials.slug`.

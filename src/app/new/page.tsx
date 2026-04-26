@@ -104,17 +104,8 @@ export default function NewSerialPage() {
             </Button>
           </Box>
 
-          {/* Chapter type and Volume type */}
+          {/* Volume type and Chapter type */}
           <Box className="gap-4">
-            <Box col className="gap-1 flex-1">
-              <Label htmlFor="chapterType">Chapter type</Label>
-              <Select
-                id="chapterType"
-                name="chapterType"
-                options={[...CHAPTER_TYPE_OPTIONS]}
-                defaultValue="Chapter"
-              />
-            </Box>
             <Box col className="gap-1 flex-1">
               <Label htmlFor="volumeType">Volume type</Label>
               <Select
@@ -122,6 +113,15 @@ export default function NewSerialPage() {
                 name="volumeType"
                 options={[...VOLUME_TYPE_OPTIONS]}
                 defaultValue="Volume"
+              />
+            </Box>
+            <Box col className="gap-1 flex-1">
+              <Label htmlFor="chapterType">Chapter type</Label>
+              <Select
+                id="chapterType"
+                name="chapterType"
+                options={[...CHAPTER_TYPE_OPTIONS]}
+                defaultValue="Chapter"
               />
             </Box>
           </Box>

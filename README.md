@@ -51,7 +51,7 @@ Schema structure (sections, floater rows) is versioned by wall-clock time. Page 
 ### Tables
 
 ```
-serials          id, title, description, splash_art_url
+serials          id, title, slug, description, splash_art_url, chapter_type, volume_type
 serial_authors   serial_id, name, display_order
 chapters         id, serial_id, display_name, idx
 
@@ -88,7 +88,7 @@ Rationale for each decision is in [spec.md § Tech Stack](spec.md#tech-stack).
 ## Getting started
 
 ```bash
-npm install
+pnpm install
 ```
 
 Create `.env.local` with your database connection string.
@@ -120,13 +120,13 @@ npx drizzle-kit migrate
 Start the dev server:
 
 ```bash
-npm run dev      # http://localhost:3000
-npm run build    # production build
-npm run lint     # ESLint
+pnpm dev         # http://localhost:3000
+pnpm build       # production build
+pnpm lint        # ESLint
 ```
 
 To regenerate migrations after schema changes:
 
 ```bash
-npx drizzle-kit generate
+pnpm drizzle-kit generate
 ```

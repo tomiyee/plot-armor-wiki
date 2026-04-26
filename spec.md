@@ -132,7 +132,7 @@ Each section and floater row has a **stable ID** so that content rows survive re
 
 ```
 serials
-  id, title, slug, description, splash_art_url
+  id, title, slug, description, splash_art_url, chapter_type, volume_type
 
 serial_authors
   serial_id, name, display_order
