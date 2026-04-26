@@ -3,10 +3,25 @@
 import { useState } from 'react';
 import { createSerial } from './actions';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+
+const CHAPTER_TYPE_OPTIONS = [
+  { label: 'Chapter', value: 'Chapter' },
+  { label: 'Episode', value: 'Episode' },
+  { label: 'Issue', value: 'Issue' },
+  { label: 'Part', value: 'Part' },
+] as const;
+
+const VOLUME_TYPE_OPTIONS = [
+  { label: 'Volume', value: 'Volume' },
+  { label: 'Season', value: 'Season' },
+  { label: 'Arc', value: 'Arc' },
+  { label: 'Book', value: 'Book' },
+] as const;
 
 export default function NewSerialPage() {
   const [authors, setAuthors] = useState<string[]>(['']);
@@ -87,6 +102,28 @@ export default function NewSerialPage() {
             >
               + Add author
             </Button>
+          </Box>
+
+          {/* Chapter type and Volume type */}
+          <Box className="gap-4">
+            <Box col className="gap-1 flex-1">
+              <Label htmlFor="chapterType">Chapter type</Label>
+              <Select
+                id="chapterType"
+                name="chapterType"
+                options={[...CHAPTER_TYPE_OPTIONS]}
+                defaultValue="Chapter"
+              />
+            </Box>
+            <Box col className="gap-1 flex-1">
+              <Label htmlFor="volumeType">Volume type</Label>
+              <Select
+                id="volumeType"
+                name="volumeType"
+                options={[...VOLUME_TYPE_OPTIONS]}
+                defaultValue="Volume"
+              />
+            </Box>
           </Box>
 
           {/* Splash art URL */}
