@@ -121,3 +121,18 @@ Always use the design-system components in `src/components/ui/` instead of bare 
 | `<h1>`–`<h4>`, `<p>`, `<label>`, `<span>` (text) | `<Text variant="…">` from `@/components/ui/text` |
 
 `<Text>` variants and their default elements: `h1` → `<h1>`, `h2` → `<h2>`, `h3` → `<h3>`, `h4` → `<h4>`, `body` → `<p>` (gray-700), `faint` → `<p>` (gray-400), `label` → `<span>`. Pass `muted` (boolean) to override any variant's text color to gray-500. Override the rendered element with `as` (e.g. `<Text as="label" variant="label" htmlFor="…">`). One-off spacing or layout tweaks go in `className`.
+
+### JSDoc conventions
+
+All exported components, hooks, and helper functions must have a JSDoc block with at least one `@example`. Keep the description concise — explain the non-obvious WHY (constraints, invariants, gotchas), not what the name already says. Omit `@param`/`@returns` for simple cases where TypeScript types are self-documenting; include them when the semantics aren't obvious from the type alone.
+
+**Exception:** Skip the JSDoc block if the function or hook is bespoke to a single file/page (not exported for reuse elsewhere) and its name and signature are self-documenting.
+
+```ts
+/**
+ * One-line summary of purpose or key constraint.
+ *
+ * @example
+ * const [val, setVal] = usePersistedStore("key", defaultValue);
+ */
+```

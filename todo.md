@@ -14,11 +14,12 @@ Steps with no shared file or data dependency can be developed concurrently in se
 | After step | Can run in parallel |
 |------------|-------------------|
 | Step 1 | **Steps 2 + 3** — DB setup vs. UI shell |
-| Steps 2 + 3 | **Steps 4 + 7** — serial CRUD vs. Auth.js setup |
+| Steps 2 + 3 | **Steps 4 + 5** — serial CRUD vs. chapter management |
 | Step 5b | **Steps 6 + 11** — schema management vs. chapter progress selector |
-| Step 12 (+ Step 7 already done) | **Steps 13, 14, 15** — editor, page blocking, spoiler-aware search |
+| Step 12 | **Steps 13, 14, 15** — editor, page blocking, spoiler-aware search |
 
 Steps 8 → 9 → 10 → 12 are a strict sequential chain.
+Auth (Step 16) and progress sync (Step 17) are intentionally deferred until all localStorage-based features are complete.
 
 ---
 
@@ -100,17 +101,7 @@ Steps 8 → 9 → 10 → 12 are a strict sequential chain.
 - No chapter versioning in this step — schema structure changes are wall-clock only.
 - Commit: `feat: schema management with sections and floater row config`
 
-## Step 7 — Auth.js setup
-
-- Install: `next-auth@beta`, and a provider package (e.g. GitHub OAuth).
-- Create `src/auth.ts` configuring Auth.js with the chosen provider. Adapter: use the Drizzle adapter or a custom one writing to the `users` table.
-- Add `app/api/auth/[...nextauth]/route.ts`.
-- Add `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, and provider credentials to `.env.local`.
-- Update `<Navbar>` to show a sign-in button (unauthenticated) or the user's display name + sign-out (authenticated), using `auth()` from `src/auth.ts` in a Server Component.
-- Verify sign-in and sign-out work end-to-end.
-- Commit: `feat: Auth.js setup with GitHub provider and session in navbar`
-
-## Step 7b — Page schema index page
+## Step 7 — Page schema index page
 
 - Create `app/[serial]/[schema]/page.tsx` — the schema index page. It shows:
   - The schema name as a heading.
@@ -147,14 +138,15 @@ Steps 8 → 9 → 10 → 12 are a strict sequential chain.
 - Layout: use CSS Grid or Flexbox — body on the left, floater on the right.
 - Commit: `feat: render floater sidebar with image and labeled rows`
 
-## Step 11 — Chapter progress selector (anonymous)
+## Step 11 — Chapter progress selector (anonymous, localStorage only)
 
 - Create a `<ChapterSelector>` Client Component. It:
   - Receives the list of chapters for the current serial as props.
-  - Reads/writes progress from `localStorage` keyed by serial ID: `plotarmor:progress:{serial_id}`.
+  - Reads/writes progress from `localStorage` keyed by serial ID using `usePersistedStore`: `plotarmor:progress:{serial_id}`.
   - Defaults to the first chapter if no value is stored.
   - Shows a temporary callout banner on first visit prompting the user to set their chapter.
 - Mount `<ChapterSelector>` in the navbar when on a serial page. The selected chapter ID must be accessible to Server Components — pass it as a cookie (set on selection, read server-side) rather than relying on localStorage alone.
+- **No auth dependency**: this step works entirely with localStorage for anonymous users.
 - Commit: `feat: chapter progress selector with localStorage persistence`
 
 ## Step 12 — SCD Type 2 versioned read path
@@ -171,10 +163,10 @@ Steps 8 → 9 → 10 → 12 are a strict sequential chain.
 - Verify by inserting test versioned rows in Neon and toggling the progress cookie.
 - Commit: `feat: apply SCD Type 2 chapter filter to page content queries`
 
-## Step 13 — Content editing
+## Step 13 — Content editing (no auth gate yet)
 
 - Install `@uiw/react-md-editor`.
-- Add an "Edit" mode to the page view (shown to authenticated users for now — authorization can be refined later):
+- Add an "Edit" mode to the page view (visible to all users initially — add auth gate in Step 16):
   - Each section gets an `<MDEditor>` replacing the read-only `<ReactMarkdown>`.
   - The floater image URL and each floater row get text inputs.
   - A single "Save" button submits all changes via a Server Action.
@@ -201,13 +193,26 @@ Steps 8 → 9 → 10 → 12 are a strict sequential chain.
 - Wire the home page search bar to call this endpoint (can use a Server Action or a route handler).
 - Commit: `feat: server-side spoiler-aware search with PG full-text search`
 
-## Step 16 — Progress sync for logged-in users
+## Step 16 — Auth.js setup
+
+Auth is intentionally deferred until all anonymous/localStorage-based features are complete and working.
+
+- Install: `next-auth@beta`, and a provider package (e.g. GitHub OAuth).
+- Create `src/auth.ts` configuring Auth.js with the chosen provider. Adapter: use the Drizzle adapter or a custom one writing to the `users` table.
+- Add `app/api/auth/[...nextauth]/route.ts`.
+- Add `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, and provider credentials to `.env.local`.
+- Update `<Navbar>` to show a sign-in button (unauthenticated) or the user's display name + sign-out (authenticated), using `auth()` from `src/auth.ts` in a Server Component.
+- Verify sign-in and sign-out work end-to-end.
+- Commit: `feat: Auth.js setup with GitHub provider and session in navbar`
+
+## Step 17 — Progress sync for logged-in users
 
 - When the user selects a chapter in `<ChapterSelector>`:
   - If authenticated: call a Server Action that upserts `user_progress (user_id, serial_id, chapter_id)`.
-  - If anonymous: write to `localStorage` only (existing behavior).
+  - If anonymous: write to `localStorage` only (existing behavior from Step 11).
 - On page load, the Server Component reads progress in priority order:
   1. `user_progress` table (if session exists).
   2. Cookie set in step 11 (fallback for anonymous).
 - When an anonymous user signs in, optionally merge their `localStorage` progress into the DB (nice-to-have, not required for initial ship).
+- Add auth gate to content editor (Step 13): only show Edit mode to authenticated users.
 - Commit: `feat: sync chapter progress to DB for authenticated users`
