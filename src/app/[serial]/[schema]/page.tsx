@@ -5,6 +5,7 @@ import { serials, pageSchemas, pages } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
+import { buttonVariants } from '@/components/ui/button';
 import { updateSchema } from '../actions';
 import { SchemaIndexEditor } from './SchemaIndexEditor';
 
@@ -63,7 +64,15 @@ export default async function SchemaIndexPage({ params }: Props) {
         />
 
         <Box col className="gap-3">
-          <Text variant="h2">Pages</Text>
+          <Box className="flex items-center justify-between">
+            <Text variant="h2">Pages</Text>
+            <Link
+              href={`/${serialSlug}/${encodeURIComponent(schema.name)}/new`}
+              className={buttonVariants({ size: 'sm' })}
+            >
+              New page
+            </Link>
+          </Box>
           {pageList.length > 0 ? (
             <ul className="flex flex-col gap-1">
               {pageList.map((page) => (
