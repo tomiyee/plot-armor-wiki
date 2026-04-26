@@ -521,6 +521,13 @@ export function SchemaManager({
                         >
                           View
                         </Link>
+                        <Link
+                          href={`/${serialSlug}/${encodeURIComponent(schema.name)}/new`}
+                          className="text-xs text-blue-600 hover:underline px-1"
+                          title={`New ${schema.name} page`}
+                        >
+                          New page
+                        </Link>
                         <Button
                           type="button"
                           variant="ghost"
