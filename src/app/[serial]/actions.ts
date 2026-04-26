@@ -131,6 +131,21 @@ export async function reorderVolumes(serialId: number, orderedVolumeIds: number[
         .set({ idx: i + 1 })
         .where(and(eq(volumes.id, orderedVolumeIds[i]), eq(volumes.serialId, serialId)));
     }
+
+    // Re-sequence chapter idx to match the new volume order, preserving within-volume order.
+    let chapterIdx = 0;
+    for (const volumeId of orderedVolumeIds) {
+      const volumeChapters = await tx
+        .select({ id: chapters.id })
+        .from(chapters)
+        .where(eq(chapters.volumeId, volumeId))
+        .orderBy(asc(chapters.idx));
+
+      for (const chapter of volumeChapters) {
+        chapterIdx++;
+        await tx.update(chapters).set({ idx: chapterIdx }).where(eq(chapters.id, chapter.id));
+      }
+    }
   });
 }
 

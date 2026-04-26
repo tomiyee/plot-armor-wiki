@@ -15,7 +15,9 @@
       "Bash(git merge *)",
       "Bash(git stash *)",
       "Bash(git rm *)",
-      "Bash(pnpm lint *)"
+      "Bash(pnpm lint *)",
+      "Bash(pnpm build *)",
+      "Bash(git diff *)"
     ]
   }
 }
