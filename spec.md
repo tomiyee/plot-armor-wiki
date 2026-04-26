@@ -23,6 +23,7 @@ Standard wikis always show the latest state of any character, location, or other
 Wiki pages follow a consistent URL pattern:
 
 ```
+/{serial}/{schema}           # schema index: name, description, page list
 /{serial}/{schema}/{page-name}
 ```
 
@@ -49,6 +50,8 @@ A serial is the top-level container for a wiki. It has the following properties:
 A schema defines a *type* of wiki page within a serial — for example, a serial might have a Character schema and a Location schema. Every wiki page belongs to exactly one schema, and all pages of that schema share the same structure.
 
 Schemas are serial-specific: a serial can have many schemas, and each schema belongs to exactly one serial.
+
+A schema has an optional **description** (`body`) — a markdown text field shown on the schema index page (`/{serial}/{schema}`) explaining what this category covers (e.g. "Characters introduced throughout the series").
 
 Every wiki page has the following required system property, regardless of schema:
 
@@ -150,7 +153,7 @@ chapters
 
 ```
 page_schemas
-  id, serial_id, name, has_floater
+  id, serial_id, name, body, has_floater
 
 schema_sections
   id, schema_id, name, display_order, created_at, deleted_at

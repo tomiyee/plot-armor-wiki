@@ -101,14 +101,14 @@ Auth (Step 16) and progress sync (Step 17) are intentionally deferred until all 
 - ~~No chapter versioning in this step — schema structure changes are wall-clock only.~~
 - Commit: `feat: schema management with sections and floater row config`
 
-## Step 7 — Page schema index page
+## ~~Step 7 — Page schema index page~~ ✓
 
-- Create `app/[serial]/[schema]/page.tsx` — the schema index page. It shows:
-  - The schema name as a heading.
-  - The schema `body` rendered as markdown (using `react-markdown`) if set — this is the editor-provided description of the category (e.g. what "Characters" means for this wiki).
-  - A list of all pages belonging to this schema, each linking to `/{serial}/{schema}/{page-name}`.
-- Resolve the serial via `WHERE slug = ?` and the schema via `WHERE serial_id = ? AND name = ?`.
-- Link to this index page from the serial detail page next to each schema name.
+- ~~Create `app/[serial]/[schema]/page.tsx` — the schema index page. It shows:~~
+  - ~~The schema name as a heading.~~
+  - ~~The schema `body` rendered as markdown (using `react-markdown`) if set — this is the editor-provided description of the category (e.g. what "Characters" means for this wiki).~~
+  - ~~A list of all pages belonging to this schema, each linking to `/{serial}/{schema}/{page-name}`.~~
+- ~~Resolve the serial via `WHERE slug = ?` and the schema via `WHERE serial_id = ? AND name = ?`.~~
+- ~~Link to this index page from the serial detail page next to each schema name.~~
 - Commit: `feat: page schema index page with body description and page list`
 
 ## Step 8 — Page creation

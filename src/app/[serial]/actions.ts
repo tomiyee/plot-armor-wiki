@@ -329,6 +329,23 @@ export async function renameSchema(_serialId: number, formData: FormData) {
   await db.update(pageSchemas).set({ name: name.trim() }).where(eq(pageSchemas.id, schemaId));
 }
 
+export async function updateSchema(_serialId: number, formData: FormData) {
+  const schemaIdRaw = formData.get('schemaId');
+  const name = formData.get('name');
+  const body = formData.get('body');
+
+  if (!schemaIdRaw || typeof schemaIdRaw !== 'string') throw new Error('Schema ID is required');
+  if (!name || typeof name !== 'string' || name.trim() === '') throw new Error('Name is required');
+
+  const schemaId = parseInt(schemaIdRaw, 10);
+  if (isNaN(schemaId)) throw new Error('Invalid schema ID');
+
+  await db.update(pageSchemas).set({
+    name: name.trim(),
+    body: typeof body === 'string' && body.length > 0 ? body : null,
+  }).where(eq(pageSchemas.id, schemaId));
+}
+
 // ─── Section management ───────────────────────────────────────────────────────
 
 export async function addSection(_serialId: number, formData: FormData) {

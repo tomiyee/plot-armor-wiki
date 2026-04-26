@@ -35,6 +35,7 @@ Every page also records the chapter it was first introduced in, which determines
 ### URL structure
 
 ```
+/{serial}/{schema}           # schema index page
 /{serial}/{schema}/{page-name}
 ```
 
@@ -56,7 +57,7 @@ serial_authors   serial_id, name, display_order
 volumes          id, serial_id, display_name, idx
 chapters         id, volume_id, display_name, idx
 
-page_schemas         id, serial_id, name, has_floater
+page_schemas         id, serial_id, name, body, has_floater
 schema_sections      id, schema_id, name, display_order, created_at, deleted_at
 schema_floater_rows  id, schema_id, label, display_order, created_at, deleted_at
 

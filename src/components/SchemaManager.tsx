@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChevronDown,
@@ -57,6 +58,7 @@ interface PendingDelete {
 
 interface SchemaManagerProps {
   schemas: Schema[];
+  serialSlug: string;
   addSchemaAction: (formData: FormData) => Promise<void>;
   deleteSchemaAction: (formData: FormData) => Promise<void>;
   renameSchemaAction: (formData: FormData) => Promise<void>;
@@ -378,12 +380,13 @@ function SchemaDetail({
 
 /**
  * Client component that manages the list of page schemas for a serial. Provides
- * inline add/delete for schemas, and expand/collapse to manage sections and
- * floater rows per schema.
+ * inline add/delete for schemas, expand/collapse to manage sections and floater
+ * rows per schema, and a link to the schema index page.
  *
  * @example
  * <SchemaManager
  *   schemas={schemas}
+ *   serialSlug="one-piece"
  *   addSchemaAction={addSchemaAction}
  *   deleteSchemaAction={deleteSchemaAction}
  *   renameSchemaAction={renameSchemaAction}
@@ -399,6 +402,7 @@ function SchemaDetail({
  */
 export function SchemaManager({
   schemas,
+  serialSlug,
   addSchemaAction,
   deleteSchemaAction,
   renameSchemaAction,
@@ -510,6 +514,13 @@ export function SchemaManager({
                         )}
                       </Button>
                       <Box className="items-center gap-1">
+                        <Link
+                          href={`/${serialSlug}/${encodeURIComponent(schema.name)}`}
+                          className="text-xs text-blue-600 hover:underline px-1"
+                          title={`View ${schema.name} index page`}
+                        >
+                          View
+                        </Link>
                         <Button
                           type="button"
                           variant="ghost"

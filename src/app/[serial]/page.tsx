@@ -155,6 +155,7 @@ export default async function SerialPage({ params }: Props) {
         {/* Schema management */}
         <SchemaManager
           schemas={schemasWithDetails}
+          serialSlug={serialSlug}
           addSchemaAction={addSchemaForSerial}
           deleteSchemaAction={deleteSchemaForSerial}
           renameSchemaAction={renameSchemaForSerial}
