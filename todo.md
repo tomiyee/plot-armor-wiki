@@ -111,13 +111,13 @@ Auth (Step 16) and progress sync (Step 17) are intentionally deferred until all 
 - ~~Link to this index page from the serial detail page next to each schema name.~~
 - Commit: `feat: page schema index page with body description and page list`
 
-## Step 8 — Page creation
+## ~~Step 8 — Page creation~~ ✓
 
-- Create `app/[serial]/[schema]/new/page.tsx` — a form to create a wiki page:
-  - Fields: page name, intro chapter (select from existing chapters for this serial).
-  - Submit via Server Action inserting into `pages`, then redirects to `/{serial}/{schema}/{page-name}`.
-- Create `app/[serial]/[schema]/[page]/page.tsx` — renders a bare shell: just the page name as a heading and the intro chapter. No content yet.
-- Add a "New page" link on the serial detail page for each schema.
+- ~~Create `app/[serial]/[schema]/new/page.tsx` — a form to create a wiki page:~~
+  - ~~Fields: page name, intro chapter (select from existing chapters for this serial).~~
+  - ~~Submit via Server Action inserting into `pages`, then redirects to `/{serial}/{schema}/{page-name}`.~~
+- ~~Create `app/[serial]/[schema]/[page]/page.tsx` — renders a bare shell: just the page name as a heading and the intro chapter. No content yet.~~
+- ~~Add a "New page" link on the schema index page for each schema.~~
 - Commit: `feat: page creation form and bare page shell`
 
 ## Step 9 — Page rendering with current content
