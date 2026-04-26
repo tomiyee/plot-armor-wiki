@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { db } from '@/db/index';
 import { serials, serialAuthors, volumes, chapters } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { addChapter, addVolume, deleteChapter, deleteVolume } from './actions';
+import { addChapter, addVolume, deleteChapter, deleteVolume, renameChapter, renameVolume } from './actions';
 import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
 import { SerialEditor } from '@/components/SerialEditor';
@@ -56,6 +56,8 @@ export default async function SerialPage({ params }: Props) {
   const addChapterForSerial = addChapter.bind(null, serial.id);
   const deleteChapterForSerial = deleteChapter.bind(null, serial.id);
   const deleteVolumeForSerial = deleteVolume.bind(null, serial.id);
+  const renameChapterForSerial = renameChapter.bind(null, serial.id);
+  const renameVolumeForSerial = renameVolume.bind(null, serial.id);
 
   return (
     <main className="flex flex-col items-center px-6 py-16 gap-8">
@@ -79,6 +81,8 @@ export default async function SerialPage({ params }: Props) {
           addVolumeAction={addVolumeForSerial}
           deleteChapterAction={deleteChapterForSerial}
           deleteVolumeAction={deleteVolumeForSerial}
+          renameChapterAction={renameChapterForSerial}
+          renameVolumeAction={renameVolumeForSerial}
         />
       </Box>
     </main>
