@@ -63,8 +63,7 @@ export default async function SerialLayout({ children, params }: Props) {
 
   return (
     <>
-      {/* Serial-scoped chapter-progress sub-bar */}
-      <div className="border-b bg-gray-800 px-6 py-2">
+      <div className="flex-none border-b bg-gray-800 px-6 py-2">
         <Box className="mx-auto max-w-5xl items-center justify-between gap-4">
           <Link
             href={`/${serialSlug}`}
@@ -80,7 +79,7 @@ export default async function SerialLayout({ children, params }: Props) {
           />
         </Box>
       </div>
-      {children}
+      <div className="flex-1 min-h-0 overflow-y-scroll">{children}</div>
     </>
   );
 }

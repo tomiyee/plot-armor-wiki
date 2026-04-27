@@ -8,7 +8,7 @@ export default async function Home() {
   const allSerials = await db.select().from(serials);
 
   return (
-    <main className="flex flex-col items-center px-6 py-16 gap-6">
+    <main className="flex-1 min-h-0 overflow-y-scroll flex flex-col items-center px-6 py-16 gap-6">
       <Text variant="h1">Find a wiki</Text>
       <SerialList serials={allSerials} />
       <Link

@@ -26,7 +26,7 @@ export default function NewSerialPage() {
   }
 
   return (
-    <main className="flex flex-col items-center px-6 py-16">
+    <main className="flex-1 min-h-0 overflow-y-scroll flex flex-col items-center px-6 py-16">
       <div className="w-full max-w-lg">
         <Text variant="h1" className="text-2xl mb-8">Create a new wiki</Text>
         <form action={createSerial} className="flex flex-col gap-5">

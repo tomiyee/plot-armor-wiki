@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Navbar() {
   return (
-    <nav className="border-b px-6 py-3 flex items-center justify-between">
+    <nav className="sticky top-0 z-10 border-b bg-white px-6 py-3 flex items-center justify-between">
       <Link href="/" className="text-xl font-bold tracking-tight">
         PlotArmor
       </Link>
