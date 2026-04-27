@@ -2,8 +2,9 @@
 
 import { redirect } from 'next/navigation';
 import { db } from '@/db/index';
-import { serials, serialAuthors, volumes, chapters, pageSchemas, schemaSections, schemaFloaterRows } from '@/db/schema';
+import { serials, serialAuthors, volumes, chapters, pageSchemas, schemaSections, schemaFloaterRows, pages, pageSectionVersions, pageFloaterVersions, pageFloaterRowVersions } from '@/db/schema';
 import { and, asc, eq, gte, gt, inArray, isNull, lte, max, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { parseChapterType, parseVolumeType } from '@/lib/serialTypes';
 import { titleToSlug } from '@/lib/slug';
 
@@ -116,6 +117,132 @@ export async function updateSerialTypes(serialId: number, formData: FormData) {
   await db.update(serials).set({ chapterType, volumeType }).where(eq(serials.id, serialId));
 }
 
+// Drizzle transaction type — structurally compatible with `db` for select/update operations.
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Restores the SCD version chain invariant for all content in a serial after a chapter reorder.
+ *
+ * For each (page, section), (page) floater, and (page, floater-row) group, versions are sorted
+ * by their current `from_chapter.idx` and `to_chapter_id` is rewritten so that
+ * `v[i].to_chapter_id = v[i+1].from_chapter_id` with the last version set to NULL.
+ * Must be called inside the same transaction as the reorder that triggered it.
+ *
+ * @example
+ * await db.transaction(async (tx) => {
+ *   // ...reorder logic...
+ *   await repairVersionChains(tx, serialId);
+ * });
+ */
+async function repairVersionChains(tx: Tx, serialId: number): Promise<void> {
+  const pageRows = await tx
+    .select({ id: pages.id })
+    .from(pages)
+    .innerJoin(pageSchemas, eq(pages.schemaId, pageSchemas.id))
+    .where(eq(pageSchemas.serialId, serialId));
+
+  const pageIds = pageRows.map((p) => p.id);
+  if (pageIds.length === 0) return;
+
+  const fromCh = alias(chapters, 'from_ch');
+
+  const sectionVers = await tx
+    .select({
+      pageId: pageSectionVersions.pageId,
+      sectionId: pageSectionVersions.sectionId,
+      fromChapterId: pageSectionVersions.fromChapterId,
+    })
+    .from(pageSectionVersions)
+    .innerJoin(fromCh, eq(pageSectionVersions.fromChapterId, fromCh.id))
+    .where(inArray(pageSectionVersions.pageId, pageIds))
+    .orderBy(asc(fromCh.idx));
+
+  const sectionGroups = new Map<string, typeof sectionVers>();
+  for (const row of sectionVers) {
+    const key = `${row.pageId}:${row.sectionId}`;
+    let g = sectionGroups.get(key);
+    if (!g) { g = []; sectionGroups.set(key, g); }
+    g.push(row);
+  }
+  for (const group of sectionGroups.values()) {
+    for (let i = 0; i < group.length; i++) {
+      const cur = group[i];
+      const toChapterId = i < group.length - 1 ? group[i + 1].fromChapterId : null;
+      await tx
+        .update(pageSectionVersions)
+        .set({ toChapterId })
+        .where(and(
+          eq(pageSectionVersions.pageId, cur.pageId),
+          eq(pageSectionVersions.sectionId, cur.sectionId),
+          eq(pageSectionVersions.fromChapterId, cur.fromChapterId),
+        ));
+    }
+  }
+
+  const floaterVers = await tx
+    .select({
+      pageId: pageFloaterVersions.pageId,
+      fromChapterId: pageFloaterVersions.fromChapterId,
+    })
+    .from(pageFloaterVersions)
+    .innerJoin(fromCh, eq(pageFloaterVersions.fromChapterId, fromCh.id))
+    .where(inArray(pageFloaterVersions.pageId, pageIds))
+    .orderBy(asc(fromCh.idx));
+
+  const floaterGroups = new Map<number, typeof floaterVers>();
+  for (const row of floaterVers) {
+    let g = floaterGroups.get(row.pageId);
+    if (!g) { g = []; floaterGroups.set(row.pageId, g); }
+    g.push(row);
+  }
+  for (const group of floaterGroups.values()) {
+    for (let i = 0; i < group.length; i++) {
+      const cur = group[i];
+      const toChapterId = i < group.length - 1 ? group[i + 1].fromChapterId : null;
+      await tx
+        .update(pageFloaterVersions)
+        .set({ toChapterId })
+        .where(and(
+          eq(pageFloaterVersions.pageId, cur.pageId),
+          eq(pageFloaterVersions.fromChapterId, cur.fromChapterId),
+        ));
+    }
+  }
+
+  const floaterRowVers = await tx
+    .select({
+      pageId: pageFloaterRowVersions.pageId,
+      floaterRowId: pageFloaterRowVersions.floaterRowId,
+      fromChapterId: pageFloaterRowVersions.fromChapterId,
+    })
+    .from(pageFloaterRowVersions)
+    .innerJoin(fromCh, eq(pageFloaterRowVersions.fromChapterId, fromCh.id))
+    .where(inArray(pageFloaterRowVersions.pageId, pageIds))
+    .orderBy(asc(fromCh.idx));
+
+  const floaterRowGroups = new Map<string, typeof floaterRowVers>();
+  for (const row of floaterRowVers) {
+    const key = `${row.pageId}:${row.floaterRowId}`;
+    let g = floaterRowGroups.get(key);
+    if (!g) { g = []; floaterRowGroups.set(key, g); }
+    g.push(row);
+  }
+  for (const group of floaterRowGroups.values()) {
+    for (let i = 0; i < group.length; i++) {
+      const cur = group[i];
+      const toChapterId = i < group.length - 1 ? group[i + 1].fromChapterId : null;
+      await tx
+        .update(pageFloaterRowVersions)
+        .set({ toChapterId })
+        .where(and(
+          eq(pageFloaterRowVersions.pageId, cur.pageId),
+          eq(pageFloaterRowVersions.floaterRowId, cur.floaterRowId),
+          eq(pageFloaterRowVersions.fromChapterId, cur.fromChapterId),
+        ));
+    }
+  }
+}
+
 /**
  * Reorders volumes for a serial by reassigning `idx` values in a single transaction.
  * `orderedVolumeIds` must contain every volume ID for the serial — no partial reorders.
@@ -148,6 +275,8 @@ export async function reorderVolumes(serialId: number, orderedVolumeIds: number[
         await tx.update(chapters).set({ idx: chapterIdx }).where(eq(chapters.id, chapter.id));
       }
     }
+
+    await repairVersionChains(tx, serialId);
   });
 }
 
@@ -208,6 +337,8 @@ export async function reorderChapters(
         .set({ idx: baseIdx + orderedChapterIds.length + i + 1 })
         .where(eq(chapters.id, followingChapters[i].id));
     }
+
+    await repairVersionChains(tx, serialId);
   });
 }
 
@@ -243,6 +374,8 @@ export async function reorderAllChapters(
         await tx.update(chapters).set({ idx, volumeId }).where(eq(chapters.id, chapterId));
       }
     }
+
+    await repairVersionChains(tx, serialId);
   });
 }
 

@@ -1,16 +1,34 @@
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { db } from '@/db/index';
-import { serials, pageSchemas, pages } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
-import { Text } from '@/components/ui/text';
-import { Box } from '@/components/ui/box';
-import { buttonVariants } from '@/components/ui/button';
-import { updateSchema } from '../actions';
-import { SchemaIndexEditor } from './SchemaIndexEditor';
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { cookies } from "next/headers";
+import { db } from "@/db/index";
+import { serials, pageSchemas, pages, chapters } from "@/db/schema";
+import { and, eq, lte } from "drizzle-orm";
+import { Text } from "@/components/ui/text";
+import { Box } from "@/components/ui/box";
+import { buttonVariants } from "@/components/ui/button";
+import { updateSchema } from "../actions";
+import { SchemaIndexEditor } from "./SchemaIndexEditor";
 
 interface Props {
   params: Promise<{ serial: string; schema: string }>;
+}
+
+async function getChapterCutoffIdx(serialId: number): Promise<number> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(`plotarmor_chapter_${serialId}`)?.value;
+  if (!raw) return 0;
+
+  const chapterId = parseInt(raw, 10);
+  if (isNaN(chapterId)) return 0;
+
+  const [row] = await db
+    .select({ idx: chapters.idx })
+    .from(chapters)
+    .where(eq(chapters.id, chapterId))
+    .limit(1);
+
+  return row?.idx ?? 0;
 }
 
 export default async function SchemaIndexPage({ params }: Props) {
@@ -31,17 +49,25 @@ export default async function SchemaIndexPage({ params }: Props) {
   const [schema] = await db
     .select()
     .from(pageSchemas)
-    .where(and(eq(pageSchemas.serialId, serial.id), eq(pageSchemas.name, schemaName)))
+    .where(
+      and(
+        eq(pageSchemas.serialId, serial.id),
+        eq(pageSchemas.name, schemaName),
+      ),
+    )
     .limit(1);
 
   if (!schema) {
     notFound();
   }
 
+  const cutoffIdx = await getChapterCutoffIdx(serial.id);
+
   const pageList = await db
     .select({ id: pages.id, name: pages.name })
     .from(pages)
-    .where(eq(pages.schemaId, schema.id))
+    .innerJoin(chapters, eq(pages.introChapterId, chapters.id))
+    .where(and(eq(pages.schemaId, schema.id), lte(chapters.idx, cutoffIdx)))
     .orderBy(pages.name);
 
   const updateSchemaForSerial = updateSchema.bind(null, serial.id);
@@ -68,7 +94,7 @@ export default async function SchemaIndexPage({ params }: Props) {
             <Text variant="h2">Pages</Text>
             <Link
               href={`/${serialSlug}/${encodeURIComponent(schema.name)}/new`}
-              className={buttonVariants({ size: 'sm' })}
+              className={buttonVariants({ size: "sm" })}
             >
               New page
             </Link>

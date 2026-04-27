@@ -149,18 +149,18 @@ Auth (Step 16) and progress sync (Step 17) are intentionally deferred until all 
 - ~~**No auth dependency**: this step works entirely with localStorage for anonymous users.~~
 - Commit: `feat: chapter progress selector with localStorage persistence`
 
-## Step 12 — SCD Type 2 versioned read path
+## ~~Step 12 — SCD Type 2 versioned read path~~ ✓
 
 **This is the core spoiler-protection query — prototype it in raw SQL against Neon before wiring it into Drizzle.**
 
-- Read the user's progress chapter index (`chapters.idx`) from the cookie set in step 11.
-- Replace the "latest only" queries in the page route with the versioned range filter:
+- ~~Read the user's progress chapter index (`chapters.idx`) from the cookie set in step 11.~~
+- ~~Replace the "latest only" queries in the page route with the versioned range filter:~~
   ```sql
   WHERE from_chapter_idx <= :cutoff AND (to_chapter_idx IS NULL OR to_chapter_idx > :cutoff)
   ```
-- Apply this filter to `page_section_versions`, `page_floater_versions`, and `page_floater_row_versions`.
-- A section with no content row in range renders as empty (not an error).
-- Verify by inserting test versioned rows in Neon and toggling the progress cookie.
+- ~~Apply this filter to `page_section_versions`, `page_floater_versions`, and `page_floater_row_versions`.~~
+- ~~A section with no content row in range renders as empty (not an error).~~
+- ~~Verify by inserting test versioned rows in Neon and toggling the progress cookie.~~
 - Commit: `feat: apply SCD Type 2 chapter filter to page content queries`
 
 ## Step 13 — Content editing (no auth gate yet)
