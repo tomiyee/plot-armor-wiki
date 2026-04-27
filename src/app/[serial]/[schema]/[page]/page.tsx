@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
 import { db } from '@/db/index';
 import {
   serials,
@@ -18,6 +17,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { and, asc, eq, isNull, lte, or, gt } from 'drizzle-orm';
 import { Text } from '@/components/ui/text';
 import { Box } from '@/components/ui/box';
+import { PageEditor } from './PageEditor';
 
 interface Props {
   params: Promise<{ serial: string; schema: string; page: string }>;
@@ -136,12 +136,18 @@ export default async function PageView({ params }: Props) {
     sectionVersions.map((v) => [v.sectionId, v.content]),
   );
 
-  let floaterImageUrl: string | null = null;
-  let activeFloaterRows: { id: number; label: string }[] = [];
-  let floaterRowContent: Map<number, string> = new Map();
+  // Assemble sections with their chapter-filtered content.
+  const sections = activeSections.map((s) => ({
+    id: s.id,
+    name: s.name,
+    content: contentBySectionId.get(s.id) ?? '',
+  }));
+
+  // ── Floater data (only when schema.hasFloater) ────────────────────────────
+  let floaterImageUrl: string | null | undefined = undefined;
+  let floaterRows: { id: number; label: string; content: string }[] = [];
 
   if (schema.hasFloater) {
-    // Floater queries also use aliased chapter joins for the SCD range filter.
     const fromChapterF = alias(chapters, 'from_chapter_f');
     const toChapterF = alias(chapters, 'to_chapter_f');
     const fromChapterFR = alias(chapters, 'from_chapter_fr');
@@ -194,24 +200,19 @@ export default async function PageView({ params }: Props) {
         ),
     ]);
 
-    floaterImageUrl = floaterVersion?.imageUrl ?? null;
-    activeFloaterRows = fetchedRows;
-    floaterRowContent = new Map(
-      floaterRowVersions.map((v) => [v.floaterRowId, v.content]),
-    );
-  }
+    const rowContentMap = new Map(floaterRowVersions.map((v) => [v.floaterRowId, v.content]));
 
-  const hasFloaterContent = floaterImageUrl !== null || activeFloaterRows.length > 0;
+    floaterImageUrl = floaterVersion?.imageUrl ?? null;
+    floaterRows = fetchedRows.map((r) => ({
+      id: r.id,
+      label: r.label,
+      content: rowContentMap.get(r.id) ?? '',
+    }));
+  }
 
   return (
     <main className="px-6 py-16">
-      <div
-        className={
-          hasFloaterContent
-            ? 'mx-auto max-w-5xl grid grid-cols-[1fr_280px] gap-8 items-start'
-            : 'mx-auto max-w-2xl'
-        }
-      >
+      <div className="mx-auto max-w-5xl">
         <Box col className="gap-6">
           {/* Breadcrumb */}
           <Text muted className="text-sm">
@@ -236,54 +237,15 @@ export default async function PageView({ params }: Props) {
             )}
           </Box>
 
-          {/* Sections */}
-          {activeSections.map((section) => {
-            const content = contentBySectionId.get(section.id) ?? '';
-            return (
-              <Box key={section.id} col className="gap-2">
-                <Text variant="h2">{section.name}</Text>
-                {content ? (
-                  <div className="prose prose-gray max-w-none text-gray-700">
-                    <ReactMarkdown>{content}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <Text muted>No content yet.</Text>
-                )}
-              </Box>
-            );
-          })}
+          <PageEditor
+            serialSlug={serialSlug}
+            schemaName={schemaName}
+            pageName={pageName}
+            sections={sections}
+            floaterImageUrl={floaterImageUrl}
+            floaterRows={floaterRows}
+          />
         </Box>
-
-        {hasFloaterContent && (
-          <aside className="sticky top-6 rounded-lg border border-gray-200 bg-gray-50 p-4 flex flex-col gap-3">
-            <Text variant="h3">{page.name}</Text>
-
-            {floaterImageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={floaterImageUrl}
-                alt={page.name}
-                className="w-full rounded object-cover"
-              />
-            )}
-
-            {activeFloaterRows.length > 0 && (
-              <dl className="flex flex-col gap-2 text-sm">
-                {activeFloaterRows.map((row) => {
-                  const content = floaterRowContent.get(row.id) ?? '';
-                  return (
-                    <div key={row.id}>
-                      <dt className="font-medium text-gray-600">{row.label}</dt>
-                      <dd className="text-gray-800 whitespace-pre-wrap">
-                        {content || <span className="text-gray-400">—</span>}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            )}
-          </aside>
-        )}
       </div>
     </main>
   );
