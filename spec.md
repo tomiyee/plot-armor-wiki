@@ -127,6 +127,28 @@ Schema structure (sections, floater rows) and page content are versioned on sepa
 
 Each section and floater row has a **stable ID** so that content rows survive renames and reordering of schema attributes without modification.
 
+### SCD Version Chain Invariant
+
+For each content dimension (`page_section_versions` per `(page_id, section_id)`, `page_floater_versions` per `page_id`, `page_floater_row_versions` per `(page_id, floater_row_id)`), the set of version rows must form a **non-overlapping, contiguous sequence** when sorted by `from_chapter.idx`:
+
+- Each version's interval is half-open: `[from_chapter.idx, to_chapter.idx)` — `from` is inclusive, `to` is exclusive (matching the SCD query).
+- For consecutive versions `v[i]` and `v[i+1]`: `v[i].to_chapter_id = v[i+1].from_chapter_id`. This ensures no gap and no overlap between them.
+- The last version (highest `from_chapter.idx`) always has `to_chapter_id = NULL`.
+
+**`from_chapter_id` is the source of truth.** It records when a piece of information was introduced or last changed. `to_chapter_id` is a derived bookkeeping value that exists only to efficiently close a version's interval; it carries no independent editorial meaning.
+
+### Chapter Reordering and Version Chain Repair
+
+When chapters are reordered (volumes reordered, chapters reordered within a volume, or chapters moved across volumes), `chapters.idx` values are reassigned. Because SCD queries resolve `from_chapter_id` and `to_chapter_id` to their current `idx` at render time, a reorder can silently break the chain invariant by creating gaps or overlaps between previously valid version intervals.
+
+**Repair rule**: After any reorder, for every version chain in the serial, sort versions by their current `from_chapter.idx` and rewrite `to_chapter_id` so that `v[i].to_chapter_id = v[i+1].from_chapter_id`, with the final version set to `NULL`. This repair runs inside the same database transaction as the reorder so the invariant is restored atomically.
+
+**Why `from_chapter_id` wins over `to_chapter_id`**: An editor assigns `from_chapter_id` when creating or updating content — it expresses editorial intent ("this fact is true starting from chapter X"). `to_chapter_id` is set automatically to close the previous version when a new one is created. Reordering is a structural correction to the chapter sequence; it would be wrong to silently change when a piece of information was _introduced_ just because its temporal neighbors moved. Adjusting `to_chapter_id` preserves the editorial intent of every version while restoring a consistent chain.
+
+**User progress follows chapter identity, not position**: Anonymous progress is stored as a chapter ID (not an idx). If a user sets their cutoff to "Book 2, Chapter 3" and the author later inserts an earlier chapter before it, the user's cutoff chapter ID is unchanged — they are now implicitly past the new chapter too. This is intentional: a new chapter inserted before the user's current position is assumed to have been read, since the user self-reported being at the later chapter.
+
+**Introduction chapter follows chapter identity**: `pages.intro_chapter_id` stores a chapter ID. If that chapter is reordered to a later position, the page becomes visible to fewer users; if moved earlier, it becomes visible to more. This is intentional — the author is making a structural correction to when the subject was first introduced, and visibility should follow that correction.
+
 ---
 
 ### Tables
