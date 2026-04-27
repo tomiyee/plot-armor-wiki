@@ -54,7 +54,6 @@ export async function savePageContent(
   floaterImageUrl: string | null,
   floaterRowContent: Record<number, string>,
 ): Promise<void> {
-  // Resolve serial
   const [serial] = await db
     .select({ id: serials.id })
     .from(serials)
@@ -62,7 +61,6 @@ export async function savePageContent(
     .limit(1);
   if (!serial) throw new Error('Serial not found');
 
-  // Resolve schema
   const [schema] = await db
     .select({ id: pageSchemas.id, hasFloater: pageSchemas.hasFloater })
     .from(pageSchemas)
@@ -70,7 +68,6 @@ export async function savePageContent(
     .limit(1);
   if (!schema) throw new Error('Schema not found');
 
-  // Resolve page
   const [page] = await db
     .select({ id: pages.id })
     .from(pages)
@@ -144,9 +141,7 @@ export async function savePageContent(
     }
 
     // ── Floater image URL ──────────────────────────────────────────────────────
-    if (schema.hasFloater && floaterImageUrl !== undefined) {
-      const imageUrl = floaterImageUrl && floaterImageUrl.trim() ? floaterImageUrl.trim() : null;
-
+    if (schema.hasFloater) {
       const [openRow] = await tx
         .select({ fromChapterId: pageFloaterVersions.fromChapterId })
         .from(pageFloaterVersions)
@@ -162,7 +157,7 @@ export async function savePageContent(
         if (openRow.fromChapterId === headChapterId) {
           await tx
             .update(pageFloaterVersions)
-            .set({ imageUrl })
+            .set({ imageUrl: floaterImageUrl })
             .where(
               and(
                 eq(pageFloaterVersions.pageId, page.id),
@@ -183,7 +178,7 @@ export async function savePageContent(
             pageId: page.id,
             fromChapterId: headChapterId,
             toChapterId: null,
-            imageUrl,
+            imageUrl: floaterImageUrl,
           });
         }
       } else {
@@ -191,7 +186,7 @@ export async function savePageContent(
           pageId: page.id,
           fromChapterId: headChapterId,
           toChapterId: null,
-          imageUrl,
+          imageUrl: floaterImageUrl,
         });
       }
     }

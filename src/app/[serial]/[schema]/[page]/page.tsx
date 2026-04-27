@@ -98,45 +98,43 @@ export default async function PageView({ params }: Props) {
   const fromChapter = alias(chapters, 'from_chapter');
   const toChapter = alias(chapters, 'to_chapter');
 
-  const [introChapter] = await db
-    .select({ displayName: chapters.displayName })
-    .from(chapters)
-    .where(eq(chapters.id, page.introChapterId))
-    .limit(1);
-
-  // Fetch active sections for this schema, ordered for display.
-  const activeSections = await db
-    .select({ id: schemaSections.id, name: schemaSections.name })
-    .from(schemaSections)
-    .where(and(eq(schemaSections.schemaId, schema.id), isNull(schemaSections.deletedAt)))
-    .orderBy(asc(schemaSections.displayOrder));
-
   // SCD Type 2 range filter: from_chapter_idx <= cutoff AND (to_chapter_idx IS NULL OR to_chapter_idx > cutoff)
   // Achieved by LEFT JOINing chapters twice (aliased) so we can compare .idx without subqueries.
-  const sectionVersions = await db
-    .select({
-      sectionId: pageSectionVersions.sectionId,
-      content: pageSectionVersions.content,
-    })
-    .from(pageSectionVersions)
-    .innerJoin(fromChapter, eq(pageSectionVersions.fromChapterId, fromChapter.id))
-    .leftJoin(toChapter, eq(pageSectionVersions.toChapterId, toChapter.id))
-    .where(
-      and(
-        eq(pageSectionVersions.pageId, page.id),
-        lte(fromChapter.idx, cutoffIdx),
-        or(
-          isNull(pageSectionVersions.toChapterId),
-          gt(toChapter.idx, cutoffIdx),
+  const [[introChapter], activeSections, sectionVersions] = await Promise.all([
+    db
+      .select({ displayName: chapters.displayName })
+      .from(chapters)
+      .where(eq(chapters.id, page.introChapterId))
+      .limit(1),
+    db
+      .select({ id: schemaSections.id, name: schemaSections.name })
+      .from(schemaSections)
+      .where(and(eq(schemaSections.schemaId, schema.id), isNull(schemaSections.deletedAt)))
+      .orderBy(asc(schemaSections.displayOrder)),
+    db
+      .select({
+        sectionId: pageSectionVersions.sectionId,
+        content: pageSectionVersions.content,
+      })
+      .from(pageSectionVersions)
+      .innerJoin(fromChapter, eq(pageSectionVersions.fromChapterId, fromChapter.id))
+      .leftJoin(toChapter, eq(pageSectionVersions.toChapterId, toChapter.id))
+      .where(
+        and(
+          eq(pageSectionVersions.pageId, page.id),
+          lte(fromChapter.idx, cutoffIdx),
+          or(
+            isNull(pageSectionVersions.toChapterId),
+            gt(toChapter.idx, cutoffIdx),
+          ),
         ),
       ),
-    );
+  ]);
 
   const contentBySectionId = new Map(
     sectionVersions.map((v) => [v.sectionId, v.content]),
   );
 
-  // Assemble sections with their chapter-filtered content.
   const sections = activeSections.map((s) => ({
     id: s.id,
     name: s.name,
