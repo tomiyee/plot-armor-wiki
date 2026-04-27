@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { db } from "@/db/index";
-import { serials, pageSchemas, pages } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { serials, pageSchemas, pages, chapters } from "@/db/schema";
+import { and, eq, lte } from "drizzle-orm";
 import { Text } from "@/components/ui/text";
 import { Box } from "@/components/ui/box";
 import { buttonVariants } from "@/components/ui/button";
@@ -11,6 +12,23 @@ import { SchemaIndexEditor } from "./SchemaIndexEditor";
 
 interface Props {
   params: Promise<{ serial: string; schema: string }>;
+}
+
+async function getChapterCutoffIdx(serialId: number): Promise<number> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(`plotarmor_chapter_${serialId}`)?.value;
+  if (!raw) return 0;
+
+  const chapterId = parseInt(raw, 10);
+  if (isNaN(chapterId)) return 0;
+
+  const [row] = await db
+    .select({ idx: chapters.idx })
+    .from(chapters)
+    .where(eq(chapters.id, chapterId))
+    .limit(1);
+
+  return row?.idx ?? 0;
 }
 
 export default async function SchemaIndexPage({ params }: Props) {
@@ -43,10 +61,13 @@ export default async function SchemaIndexPage({ params }: Props) {
     notFound();
   }
 
+  const cutoffIdx = await getChapterCutoffIdx(serial.id);
+
   const pageList = await db
     .select({ id: pages.id, name: pages.name })
     .from(pages)
-    .where(eq(pages.schemaId, schema.id))
+    .innerJoin(chapters, eq(pages.introChapterId, chapters.id))
+    .where(and(eq(pages.schemaId, schema.id), lte(chapters.idx, cutoffIdx)))
     .orderBy(pages.name);
 
   const updateSchemaForSerial = updateSchema.bind(null, serial.id);
