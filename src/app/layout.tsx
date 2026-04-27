@@ -31,7 +31,7 @@ export default function RootLayout({
     >
       <body className="h-full overflow-hidden flex flex-col" suppressHydrationWarning>
         <Navbar />
-        <div className="flex-1 overflow-y-scroll">{children}</div>
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
       </body>
     </html>
   );
