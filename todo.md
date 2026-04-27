@@ -163,17 +163,17 @@ Auth (Step 16) and progress sync (Step 17) are intentionally deferred until all 
 - ~~Verify by inserting test versioned rows in Neon and toggling the progress cookie.~~
 - Commit: `feat: apply SCD Type 2 chapter filter to page content queries`
 
-## Step 13 — Content editing (no auth gate yet)
+## ~~Step 13 — Content editing (no auth gate yet)~~ ✓
 
-- Install `@uiw/react-md-editor`.
-- Add an "Edit" mode to the page view (visible to all users initially — add auth gate in Step 16):
-  - Each section gets an `<MDEditor>` replacing the read-only `<ReactMarkdown>`.
-  - The floater image URL and each floater row get text inputs.
-  - A single "Save" button submits all changes via a Server Action.
-- The Server Action implements the SCD Type 2 write path:
-  1. For each changed section: find the open row (`to_chapter_id IS NULL`), set its `to_chapter_id` to the current chapter, insert a new row with `from_chapter_id = current chapter, to_chapter_id = NULL, content = new content`.
-  2. Same pattern for `page_floater_versions` and `page_floater_row_versions`.
-  3. `current chapter` here means the latest chapter in the serial (the edit always writes at head).
+- ~~Install `@uiw/react-md-editor`.~~
+- ~~Add an "Edit" mode to the page view (visible to all users initially — add auth gate in Step 16):~~
+  - ~~Each section gets an `<MDEditor>` replacing the read-only `<ReactMarkdown>`.~~
+  - ~~The floater image URL and each floater row get text inputs.~~
+  - ~~A single "Save" button submits all changes via a Server Action.~~
+- ~~The Server Action implements the SCD Type 2 write path:~~
+  1. ~~For each changed section: find the open row (`to_chapter_id IS NULL`), set its `to_chapter_id` to the current chapter, insert a new row with `from_chapter_id = current chapter, to_chapter_id = NULL, content = new content`.~~
+  2. ~~Same pattern for `page_floater_versions` and `page_floater_row_versions`.~~
+  3. ~~`current chapter` here means the latest chapter in the serial (the edit always writes at head).~~
 - Commit: `feat: markdown content editor with SCD Type 2 write path`
 
 ## Step 14 — Spoiler-aware page blocking

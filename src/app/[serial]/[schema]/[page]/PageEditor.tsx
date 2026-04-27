@@ -66,7 +66,6 @@ export function PageEditor({
   const [isPending, startTransition] = useTransition();
   const [isEditing, setIsEditing] = useState(false);
 
-  // Draft state — keyed by entity ID.
   const [draftSectionContent, setDraftSectionContent] = useState<Record<number, string>>(
     () => Object.fromEntries(sections.map((s) => [s.id, s.content])),
   );
@@ -80,7 +79,6 @@ export function PageEditor({
   const hasFloater = floaterImageUrl !== undefined;
 
   function handleCancel() {
-    // Reset drafts back to last-saved values.
     setDraftSectionContent(Object.fromEntries(sections.map((s) => [s.id, s.content])));
     setDraftFloaterImageUrl(floaterImageUrl ?? '');
     setDraftFloaterRowContent(Object.fromEntries(floaterRows.map((r) => [r.id, r.content])));

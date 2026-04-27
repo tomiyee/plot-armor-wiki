@@ -149,6 +149,17 @@ When chapters are reordered (volumes reordered, chapters reordered within a volu
 
 **Introduction chapter follows chapter identity**: `pages.intro_chapter_id` stores a chapter ID. If that chapter is reordered to a later position, the page becomes visible to fewer users; if moved earlier, it becomes visible to more. This is intentional — the author is making a structural correction to when the subject was first introduced, and visibility should follow that correction.
 
+### SCD Write Path
+
+Edits always write at the **head chapter** — the latest chapter in the serial — so fully-caught-up readers see changes immediately. For each versioned dimension being saved:
+
+1. Find the currently-open row (`to_chapter_id IS NULL`).
+2. If the open row's `from_chapter_id` already equals the head chapter ID, update it in-place (no new version is created).
+3. Otherwise, close the open row (`to_chapter_id = headChapterId`) and insert a new open row (`from_chapter_id = headChapterId`, `to_chapter_id = NULL`).
+4. If no open row exists, insert a new open row at head.
+
+This is implemented in `savePageContent` in `src/app/[serial]/[schema]/[page]/actions.ts` and runs inside a single transaction.
+
 ---
 
 ### Tables
