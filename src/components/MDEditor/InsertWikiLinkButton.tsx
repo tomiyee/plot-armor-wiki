@@ -21,15 +21,25 @@ import { WikiLinkContext } from "./WikiLinkContext";
 export function InsertWikiLinkButton() {
   const { openInsertMenu } = useContext(WikiLinkContext);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  // Capture the selection text on mousedown, before the button takes focus and
+  // the browser clears the contenteditable's DOM selection.
+  const savedAliasRef = useRef("");
+
+  const handleMouseDown = useCallback(() => {
+    const sel = window.getSelection();
+    savedAliasRef.current =
+      sel && !sel.isCollapsed ? sel.toString().trim() : "";
+  }, []);
 
   const handleButtonClick = useCallback(() => {
-    if (buttonRef.current) openInsertMenu(buttonRef.current);
+    if (buttonRef.current) openInsertMenu(buttonRef.current, savedAliasRef.current);
   }, [openInsertMenu]);
 
   return (
     <ButtonWithTooltip
       title="Insert wiki link"
       ref={buttonRef}
+      onMouseDown={handleMouseDown}
       onClick={handleButtonClick}
       aria-haspopup="dialog"
     >

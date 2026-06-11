@@ -31,3 +31,13 @@ export const WIKI_LINK_CHIP_INTERACTIVE =
  */
 export const WIKI_LINK_CHIP_LINK =
   "cursor-pointer hover:bg-accent hover:text-accent-foreground select-text";
+
+/**
+ * Visual overlay applied on top of `WIKI_LINK_CHIP_BASE` (and optionally
+ * `WIKI_LINK_CHIP_INTERACTIVE`) when the target page or chapter cannot be
+ * resolved — i.e. the link is "dead". The dashed underline and destructive
+ * text colour give authors an immediate in-editor signal without blocking the
+ * editing workflow.
+ */
+export const WIKI_LINK_CHIP_DEAD =
+  "text-destructive underline decoration-dashed";

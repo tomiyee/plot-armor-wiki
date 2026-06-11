@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { GripVerticalIcon, PenIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { DndContext, closestCenter } from "@dnd-kit/core";
@@ -160,6 +160,8 @@ export function PageInfoboxManager({
   // syncs back to `sections` once router.refresh() delivers the server result.
   const { items: localSections, applyOptimistic, revert } = useOptimisticOrder(sections);
 
+  const sectionIds = useMemo(() => localSections.map((s) => s.id), [localSections]);
+
   const sensors = useSortableSensors();
   const handleDragEnd = makeDragEndHandler(localSections, (reorderedIds) => {
     applyOptimistic(reorderedIds); // update UI immediately, before the round-trip
@@ -187,7 +189,7 @@ export function PageInfoboxManager({
 
       {localSections.length > 0 ? (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={localSections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={sectionIds} strategy={verticalListSortingStrategy}>
             <ol className="flex flex-col gap-1">
               {localSections.map((section) => (
                 <SortableInfoboxRow

@@ -4,6 +4,7 @@ import { useCallback, useContext, useRef } from "react";
 import { WikiLinkContext } from "./WikiLinkContext";
 import {
   WIKI_LINK_CHIP_BASE,
+  WIKI_LINK_CHIP_DEAD,
   WIKI_LINK_CHIP_INTERACTIVE,
 } from "./wikiLinkChipClasses";
 
@@ -32,7 +33,8 @@ type WikiLinkChipProps = {
  */
 export function WikiLinkChip(props: WikiLinkChipProps) {
   const { token, alias, nodeKey } = props;
-  const { wikiPages, chapterType, openEditMenu } = useContext(WikiLinkContext);
+  const { wikiPages, wikiChapters, chapterType, openEditMenu } =
+    useContext(WikiLinkContext);
   const spanRef = useRef<HTMLSpanElement>(null);
 
   const colonIdx = token.indexOf(":");
@@ -40,15 +42,24 @@ export function WikiLinkChip(props: WikiLinkChipProps) {
   const value = colonIdx !== -1 ? token.slice(colonIdx + 1) : token;
 
   let actualName: string;
+  let isDead = false;
   if (category === "page") {
     const page = wikiPages.find((p) => p.slug === value);
-    actualName =
-      page?.name ??
-      value
+    if (page) {
+      actualName = page.name;
+    } else {
+      isDead = true;
+      actualName = value
         .split("-")
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(" ");
+    }
   } else {
+    // Chapter links are identified by name (case-insensitive).
+    const chapter = wikiChapters.find(
+      (c) => c.name.toLowerCase() === value.toLowerCase(),
+    );
+    isDead = !chapter;
     actualName = value;
   }
 
@@ -61,13 +72,17 @@ export function WikiLinkChip(props: WikiLinkChipProps) {
     openEditMenu(nodeKey, spanRef.current);
   }, [nodeKey, openEditMenu]);
 
+  const deadLabel =
+    category === "page" ? "Page not found" : "Chapter not found";
+
   return (
     <span
       ref={spanRef}
       contentEditable={false}
       data-wiki-key={nodeKey}
       onClick={nodeKey ? handleClick : undefined}
-      className={`${WIKI_LINK_CHIP_BASE}${nodeKey ? ` ${WIKI_LINK_CHIP_INTERACTIVE}` : ""}`}
+      title={isDead ? deadLabel : undefined}
+      className={`${WIKI_LINK_CHIP_BASE}${nodeKey ? ` ${WIKI_LINK_CHIP_INTERACTIVE}` : ""}${isDead ? ` ${WIKI_LINK_CHIP_DEAD}` : ""}`}
     >
       {label}
       {showActualName && (

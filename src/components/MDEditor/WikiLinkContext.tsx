@@ -29,7 +29,7 @@ export const WikiLinkContext = createContext<{
    * Called from InsertWikiLinkButton so the popover is rendered outside the
    * MDXEditor toolbar DOM subtree, avoiding inherited toolbar CSS.
    */
-  openInsertMenu: (el: HTMLElement) => void;
+  openInsertMenu: (el: HTMLElement, selectedText?: string) => void;
 }>({
   wikiPages: [],
   wikiChapters: [],

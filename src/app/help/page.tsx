@@ -285,6 +285,24 @@ export default function HelpPage() {
               </code>
               .
             </Text>
+            <Text>
+              <strong>Live links vs. frozen aliases.</strong> A link{" "}
+              <em>without</em> an alias (e.g.{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-sm font-mono">
+                [[page:luffy]]
+              </code>
+              ) always renders the page&rsquo;s current title — if the page is
+              renamed, every live link to it updates automatically. A link{" "}
+              <em>with</em> an alias (e.g.{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-sm font-mono">
+                [[page:luffy|The Straw Hat]]
+              </code>
+              ) freezes the display text to whatever you typed; it will not
+              change if the page is renamed. When using the{" "}
+              <strong>Insert/Edit Wiki Link</strong> popover, leaving the alias
+              field blank creates a live link (the default). Only fill in the
+              alias field when you intentionally want a custom display name.
+            </Text>
           </div>
 
           <div className="flex flex-col gap-2">
