@@ -11,6 +11,7 @@ import {
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   ilike,
@@ -749,4 +750,50 @@ export async function fetchSearchablePagesAtIdx(
       ),
     )
     .orderBy(asc(pages.name));
+}
+
+/**
+ * Returns every `page_titles` entry at or before `cutoffIdx` for all live
+ * pages in a serial, ordered by chapter idx ascending per page. One query
+ * instead of N `fetchPageTitleEntriesAtIdx` calls — used by the local ingest
+ * export to build a title + alias index over thousands of pages.
+ *
+ * Spoiler rule: entries stamped after `cutoffIdx` are excluded, so later
+ * renames never leak. The last entry per page is its resolved title.
+ */
+export async function fetchSerialPageTitlesAtIdx(
+  serialId: number,
+  cutoffIdx: number,
+): Promise<{ pageId: number; title: string; chapterIdx: number }[]> {
+  return db
+    .select({
+      pageId: pageTitles.pageId,
+      title: pageTitles.title,
+      chapterIdx: chapters.idx,
+    })
+    .from(pageTitles)
+    .innerJoin(pages, eq(pageTitles.pageId, pages.id))
+    .innerJoin(chapters, eq(pageTitles.chapterId, chapters.id))
+    .where(
+      and(
+        eq(pages.serialId, serialId),
+        isNull(pages.deletedAt),
+        lte(chapters.idx, cutoffIdx),
+      ),
+    )
+    .orderBy(asc(pageTitles.pageId), asc(chapters.idx));
+}
+
+/**
+ * Counts page body revisions stamped exactly at `chapterId`. The ingest export
+ * uses it to warn that manual edits already exist at the target chapter.
+ */
+export async function countPageContentRevisionsAtChapter(
+  chapterId: number,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(pageContentRevisions)
+    .where(eq(pageContentRevisions.chapterId, chapterId));
+  return row?.n ?? 0;
 }
