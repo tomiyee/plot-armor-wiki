@@ -24,7 +24,7 @@ Do all work in this session. Do not use subagents.
 1. **Use only the chapter text and the context file.** Do not use what you know about the series from other sources. You may know later events; writing them is a spoiler.
 2. **Every new fact has a verbatim citation** from `chapterText`. Copy the quote exactly (short, one or two sentences). The validator rejects quotes that are not in the chapter.
 3. **Keep the structure and voice of each page.** Add to the section that fits. Write in past tense, in a neutral encyclopedic voice.
-4. **Links:** use `[[page:Title]]` only for a title or alias in `pageIndex`, or a title of a new page that you propose. Use `[[page:Title|shown text]]` to change the text shown.
+4. **Links:** use `[[page:Title]]` only for a title or alias in `pageIndex`, or the exact `title` of a new page that you propose (not its aliases; they are not stored). Use `[[page:Title|shown text]]` to change the text shown.
 5. Only propose infobox changes as body text if they are needed; the review tool applies body edits only.
 6. Do not duplicate facts that are already on a page.
 7. Prefer fewer, correct proposals over many weak ones. Skip trivial mentions.
@@ -42,7 +42,7 @@ Do all work in this session. Do not use subagents.
      - `{ "op": "append", "text": "..." }` adds to the end of the body.
      - `{ "op": "insert_after", "anchor": "## History", "text": "..." }` — `anchor` is an exact existing line that occurs once. After a heading, the text goes at the end of that section.
      - `{ "op": "replace", "find": "...", "with": "..." }` — `find` must occur exactly once in the current content.
-   - **New pages:** full body (a lead sentence, then sections if useful), `aliases` (other names used in the chapter), `parentPageId` (an indexed category page id such as "Characters", another new page's `tempId`, or omit for the home page), and a unique `tempId` such as `"new-1"`.
+   - **New pages:** full body (a lead sentence, then sections if useful), `aliases` (other names used in the chapter; for the admin's reference only), `parentPageId` (an indexed category page id such as "Characters", another new page's `tempId`, or omit for the home page), and a unique `tempId` such as `"new-1"`.
    - Every proposal has `citations` (`{ "quote", "note" }`) and a one or two sentence `changeSummary`. Give each updated page one entry in `updates` (put all its edits together).
 3. **Header fields.**
    - `chapterId`: `context.chapter.id`.

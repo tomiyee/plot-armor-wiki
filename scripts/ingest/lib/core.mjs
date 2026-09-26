@@ -53,7 +53,7 @@ export function applyEdits(base, edits) {
   const errors = [];
   edits.forEach((e, i) => {
     if (e.op === "append") {
-      body = body.trim() ? `${body.replace(/\s+$/, "")}\n\n${e.text.trim()}\n` : `${e.text.trim()}\n`;
+      body = body.trim() ? `${body.replace(/\s+$/, "")}\n\n${e.text.trim()}` : e.text.trim();
     } else if (e.op === "insert_after") {
       const lines = body.split("\n");
       const matches = lines
@@ -210,7 +210,9 @@ function checkShape(p, errors) {
 
 /**
  * Builds the set of linkable title keys: index titles + aliases + proposed
- * new-page titles/aliases. Maps key → { pageId } | { tempId }.
+ * new-page titles. Maps key → { pageId } | { tempId }. New-page aliases are
+ * NOT linkable: `page_titles` holds one title per (page, chapter), so aliases
+ * of a page created at chapter N cannot be stored and would not resolve.
  */
 export function buildTitleMap(context, proposals) {
   const map = new Map();
@@ -218,7 +220,7 @@ export function buildTitleMap(context, proposals) {
     for (const t of [p.title, ...p.aliases]) if (!map.has(titleKey(t))) map.set(titleKey(t), { pageId: p.id });
   }
   for (const n of proposals?.newPages ?? []) {
-    for (const t of [n.title, ...(n.aliases ?? [])]) if (!map.has(titleKey(t))) map.set(titleKey(t), { tempId: n.tempId });
+    if (!map.has(titleKey(n.title))) map.set(titleKey(n.title), { tempId: n.tempId });
   }
   return map;
 }
