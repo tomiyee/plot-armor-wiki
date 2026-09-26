@@ -38,7 +38,7 @@ export function urlSlug(url: string): string | null {
 
 /** Filesystem-safe directory name for `.ingest/<chapter>/`. */
 export function chapterDirName(displayName: string): string {
-  return displayName.replace(/[^\p{L}\p{N}.\-]+/gu, "") || "chapter";
+  return displayName.replace(/[^\p{L}\p{N}.]+/gu, "-").replace(/-?\.-?/g, ".").replace(/^-+|-+$/g, "") || "chapter";
 }
 
 function tokenScore(a: string, b: string) {
