@@ -103,3 +103,21 @@ This script installs `pre-commit.sh` as the repo's `pre-commit` git hook. It fin
 ### `pre-commit.sh`
 
 This is the hook itself. `install-hooks.sh` copies it into place. It runs `rtk npm run build` before it allows a commit.
+
+## LLM-assisted chapter ingest (`ingest/`)
+
+These are local admin tools that fill in the wiki from a chapter's text (issue #241). The LLM step runs in Claude Code through the `/ingest-chapter` skill. The production app has no route, UI, or table for this workflow. Working files go in `.ingest/<chapter>/`, which is gitignored, so chapter text is never committed.
+
+1. **Setup:** copy `.env.ingest.example` to `.env.ingest`. The ingest scripts read only this file, not `.env.local`. For the first chapters, point it at a copy of the database made with `clone-db.sh`.
+2. **Capture:** install `ingest/bookmarklet.js` as a bookmark. Click it on a chapter page to copy a capture JSON to the clipboard.
+3. **Export:**
+   ```bash
+   npx tsx scripts/ingest/export-context.ts --serial wandering-inn --clipboard   # or a capture.json path
+   ```
+   The script finds the matching chapter and always asks you to confirm it. The chapter must already exist; create it in the serial editor first. The script then writes `context.json`, which contains the wiki as readers see it at that chapter.
+4. **Propose:** start a new Claude Code session and run `/ingest-chapter .ingest/<chapter>/context.json`. The skill writes `proposals.json` and checks it with `node scripts/ingest/validate.mjs`.
+5. **Review:**
+   ```bash
+   npx tsx scripts/ingest/review.ts .ingest/<chapter>/ [--dry-run]
+   ```
+   This opens a page on `127.0.0.1`. You can approve, edit, or reject each proposal. Each approval is written immediately at the target chapter in its own transaction. Approve new pages first. Page updates are blocked if the page changed after the export. Every decision is appended to `decisions.json`.
