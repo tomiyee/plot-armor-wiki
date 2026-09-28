@@ -58,19 +58,30 @@ function parseArgs(argv: string[]) {
 
 function readClipboard(): string {
   const cmds = [
-    "powershell.exe -NoProfile -Command Get-Clipboard -Raw",
+    // Force UTF-8 output: the default console code page best-fit maps curly
+    // quotes (“ ”) to a straight `"`, which breaks the capture's JSON strings.
+    // The absolute path covers WSL setups without the Windows PATH appended.
+    ...["powershell.exe", "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"].map(
+      (exe) =>
+        `${exe} -NoProfile -Command "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-Clipboard -Raw"`,
+    ),
     "pbpaste",
     "wl-paste",
     "xclip -selection clipboard -o",
   ];
+  const failures: string[] = [];
   for (const cmd of cmds) {
     try {
-      return execSync(cmd, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] });
-    } catch {
-      // try next
+      return execSync(cmd, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) {
+      const err = e as { status?: number; stderr?: string; message: string };
+      const detail = err.stderr?.trim() || err.message.split("\n")[0];
+      failures.push(`  ${cmd.split(" ")[0]} (exit ${err.status ?? "?"}): ${detail}`);
     }
   }
-  throw new Error("Could not read the clipboard - save the capture to a file instead.");
+  throw new Error(
+    `Could not read the clipboard - save the capture to a file instead.\n${failures.join("\n")}`,
+  );
 }
 
 function escapeRegex(s: string) {
@@ -177,10 +188,14 @@ async function main() {
     allNames.set(p.id, { title, aliases });
   }
 
+  // Pages introduced at this chapter are always indexed, even when the text
+  // never names them verbatim: an admin may have created them already, and
+  // the skill must update them instead of proposing duplicates.
+  const introducedHere = new Set(visible.filter((p) => p.introChapterId === chapter.id).map((p) => p.id));
   const matched = new Set<number>();
   for (const [id, n] of allNames) {
     if (id === home?.id) continue;
-    if ([n.title, ...n.aliases].some((t) => mentions(textLower, t))) matched.add(id);
+    if (introducedHere.has(id) || [n.title, ...n.aliases].some((t) => mentions(textLower, t))) matched.add(id);
   }
   const parentOf = new Map<number, number | null>();
   const queue = [...matched];
@@ -213,13 +228,20 @@ async function main() {
     title: allNames.get(b.id)!.title,
     aliases: allNames.get(b.id)!.aliases,
     parentId: parentOf.get(b.id) ?? null,
+    introducedAtChapter: introducedHere.has(b.id),
     firstLine: firstLine(b.content),
   }));
 
   const context = {
     v: 1,
     serial: { id: serial.id, slug: serial.slug, name: serial.title },
-    chapter: { id: chapter.id, idx: N, displayName: chapter.displayName },
+    chapter: {
+      id: chapter.id,
+      idx: N,
+      displayName: chapter.displayName,
+      // Wiki link that cites this chapter in page bodies; the category must be the serial's chapter type.
+      link: `[[${serial.chapterType}:${chapter.displayName}]]`,
+    },
     homePageId: home?.id ?? null,
     source: { url: capture.url, title: capture.title, textSha256: sha256(capture.text) },
     chapterText: capture.text,
@@ -236,7 +258,7 @@ async function main() {
   writeFileSync(path.join(dir, "context.json"), contextRaw);
 
   console.log(
-    `\nWrote ${dir}/context.json - ${pageIndex.length} indexed pages (${matched.size} mentioned + parents), ~${Math.round(contextRaw.length / 4 / 1000)}k tokens.`,
+    `\nWrote ${dir}/context.json - ${pageIndex.length} indexed pages (${matched.size} mentioned or introduced here + parents; ${introducedHere.size} introduced here), ~${Math.round(contextRaw.length / 4 / 1000)}k tokens.`,
   );
   console.log(`Next, in a fresh Claude Code session: /ingest-chapter ${dir}/context.json`);
 }

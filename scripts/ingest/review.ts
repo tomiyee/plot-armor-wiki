@@ -275,7 +275,7 @@ function render(){
     + " · " + by("page_update").length + " updates, " + by("new_page").length + " new pages · "
     + (S.dryRun ? "<b>DRY RUN</b>" : "writes to " + esc(S.dbTarget)) + "</div>"
     + S.validationErrors.map((e) => "<div class=err>" + esc(e) + "</div>").join("")
-    + "<h2>New pages</h2><div class=meta>Approve new pages first; anything that links to one is blocked until it exists.</div>" + (by("new_page").map(card).join("") || "<div class=meta>None</div>")
+    + "<h2>New pages</h2><div class=meta>Approve new pages first, top to bottom (each is listed after the new pages it needs); anything that links to one is blocked until it exists.</div>" + (by("new_page").map(card).join("") || "<div class=meta>None</div>")
     + "<h2>Synopsis</h2>" + (by("synopsis").map(card).join("") || "<div class=meta>None</div>")
     + "<h2>Page updates</h2><button onclick='approveMinor()'>Approve all verified minor updates</button>"
     + (by("page_update").map(card).join("") || "<div class=meta>None</div>");

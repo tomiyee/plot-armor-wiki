@@ -4,16 +4,22 @@
  * Install: create a browser bookmark whose URL is this whole file's code
  * starting at `javascript:` (minify to one line if your browser requires it).
  * Click it on a chapter page; the capture JSON is copied to the clipboard.
+ * Works on the WordPress page and on the browser reader view
+ * (article > h1.title.metadata, with TTS player spans in each paragraph).
  * Then either save it to a file or run:
  *   npx tsx scripts/ingest/export-context.ts --serial wandering-inn --clipboard
  */
 javascript:(async()=>{
-  const body = document.querySelector('.entry-content');
-  const title = document.querySelector('h1.entry-title, .entry-title')?.innerText.trim();
+  const body = document.querySelector('.entry-content') ?? document.querySelector('main article');
+  const title = document.querySelector('h1.entry-title, .entry-title, article h1.title')?.innerText.trim();
   if (!body) return alert('PlotArmor: chapter body not found');
   const clone = body.cloneNode(true);
-  clone.querySelectorAll('script,style,.sharedaddy,.jp-relatedposts,nav,.wp-block-buttons')
+  clone.querySelectorAll('script,style,.sharedaddy,.jp-relatedposts,nav,.wp-block-buttons,.metadata,.tts-paragraph-player,hr')
        .forEach(n => n.remove());
+  /* Drop the "Previous/Next Chapter" link paragraphs. */
+  clone.querySelectorAll('p').forEach(p => {
+    if (/^\s*(previous|next) chapter\s*$/i.test(p.textContent)) p.remove();
+  });
   /* innerText on a detached node ignores layout, so attach it off-screen. */
   clone.style.cssText = 'position:absolute;left:-99999px;white-space:pre-wrap';
   document.body.appendChild(clone);

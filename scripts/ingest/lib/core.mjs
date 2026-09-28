@@ -107,6 +107,28 @@ export function extractPageLinks(md) {
 }
 
 /**
+ * Quote lines from markdown blockquotes (`> ...`), with the surrounding
+ * quotation marks removed. Attribution lines (`> — Name, [[Chapter:1.00]]`)
+ * are skipped. Used to check that quotes shown on a page are verbatim.
+ */
+export function extractBlockquotes(md) {
+  const out = [];
+  for (const line of md.split("\n")) {
+    const m = /^\s*>\s?(.*)$/.exec(line);
+    if (!m) continue;
+    const text = m[1].trim();
+    if (!text || /^(—|–|-{1,2})\s/.test(text)) continue;
+    out.push(text.replace(/^["“]/, "").replace(/["”]$/, "").replace(/^\*+|\*+$/g, "").trim());
+  }
+  return out.filter(Boolean);
+}
+
+/** Chapter link used to cite the target chapter (older context files have no `chapter.link`). */
+export function chapterLink(context) {
+  return context.chapter.link ?? `[[Chapter:${context.chapter.displayName}]]`;
+}
+
+/**
  * Word-level diff of `a` → `b` as `[{ t: "=" | "-" | "+", s }]`. Trims the
  * common prefix/suffix first (edits are localized), then runs an LCS on the
  * remaining middle.
@@ -226,6 +248,64 @@ export function buildTitleMap(context, proposals) {
 }
 
 /**
+ * tempIds of the other new pages that new page `n` needs to exist before it
+ * can be approved: its parent (if a tempId) and every new page its body links to.
+ */
+export function newPageDeps(n, titleMap) {
+  const deps = new Set();
+  if (isStr(n.parentPageId)) deps.add(n.parentPageId);
+  for (const name of extractPageLinks(n.content ?? "")) {
+    const t = titleMap.get(titleKey(name));
+    if (t?.tempId) deps.add(t.tempId);
+  }
+  deps.delete(n.tempId);
+  return [...deps];
+}
+
+/**
+ * The review tool approves one proposal at a time and blocks a new page until
+ * every new page it depends on exists. So new-page dependencies must be
+ * acyclic, and `newPages` must list each page after its dependencies (the
+ * review UI shows them in array order).
+ */
+function checkNewPageOrder(newPages, titleMap, errors) {
+  const pos = new Map(newPages.map((n, i) => [n.tempId, i]));
+  const depsOf = new Map(newPages.map((n) => [n.tempId, newPageDeps(n, titleMap)]));
+
+  // Report each cycle once (DFS with a recursion stack).
+  const state = new Map();
+  const stack = [];
+  const seen = new Set();
+  const visit = (id) => {
+    state.set(id, 1);
+    stack.push(id);
+    for (const d of depsOf.get(id) ?? []) {
+      if (!pos.has(d)) continue;
+      if (state.get(d) === 1) {
+        const cycle = [...stack.slice(stack.indexOf(d)), d];
+        const sig = [...new Set(cycle)].sort().join(",");
+        if (!seen.has(sig)) {
+          seen.add(sig);
+          errors.push(
+            `newPages: circular dependency ${cycle.join(" -> ")} - a new page may link to (or be the child of) another new page only in one direction; remove a link`,
+          );
+        }
+      } else if (!state.has(d)) visit(d);
+    }
+    stack.pop();
+    state.set(id, 2);
+  };
+  for (const n of newPages) if (!state.has(n.tempId)) visit(n.tempId);
+  if (seen.size) return;
+
+  for (const n of newPages) {
+    const late = depsOf.get(n.tempId).filter((d) => pos.has(d) && pos.get(d) > pos.get(n.tempId));
+    if (late.length)
+      errors.push(`newPages[${n.tempId}]: depends on ${late.join(", ")}, which come later - list new pages after the pages they link to or use as a parent`);
+  }
+}
+
+/**
  * Runs every proposals.json check. `contextRaw` is the exact context.json
  * file content (its sha256 must equal `proposals.contextSha256`).
  * Returns `{ errors, items }` where `items` holds per-proposal results used
@@ -255,6 +335,14 @@ export function validateProposals(contextRaw, proposals) {
       if (!ok) errors.push(`${where}: quote not found in chapter text: ${JSON.stringify(c.quote.slice(0, 100))}`);
       return { ...c, verified: ok };
     });
+  const citeLink = chapterLink(context);
+  // Page text must cite the chapter, and every blockquote in it must be a verbatim quote.
+  const checkPageCitations = (md, where) => {
+    if (!md.includes(citeLink)) errors.push(`${where}: text does not cite the chapter - add ${citeLink} after the new facts`);
+    for (const q of extractBlockquotes(md))
+      if (!chapterNorm.includes(normalizeWs(q)))
+        errors.push(`${where}: blockquote is not a verbatim quote from the chapter: ${JSON.stringify(q.slice(0, 100))}`);
+  };
   const links = (md, where) =>
     extractPageLinks(md).map((name) => {
       const target = titleMap.get(titleKey(name)) ?? null;
@@ -269,10 +357,12 @@ export function validateProposals(contextRaw, proposals) {
     const clash = context.pageIndex.find((p) => [p.title, ...p.aliases].some((t) => titleKey(t) === titleKey(n.title)));
     if (clash) errors.push(`${w}: title "${n.title}" already exists as page ${clash.id} - propose an update instead`);
   }
+  checkNewPageOrder(proposals.newPages, titleMap, errors);
   for (const n of proposals.newPages) {
     const w = `newPages[${n.tempId}]`;
     if (typeof n.parentPageId === "number" && !indexIds.has(n.parentPageId)) errors.push(`${w}: parentPageId ${n.parentPageId} not in index`);
     if (isStr(n.parentPageId) && !tempIds.has(n.parentPageId)) errors.push(`${w}: parentPageId "${n.parentPageId}" is not a proposed tempId`);
+    checkPageCitations(n.content, w);
     items.push({
       kind: "new_page",
       key: `new:${n.tempId}`,
@@ -310,6 +400,7 @@ export function validateProposals(contextRaw, proposals) {
     const { body, errors: editErrors } = applyEdits(page.content, u.edits);
     editErrors.forEach((e) => errors.push(`${w}: ${e}`));
     const added = u.edits.map((e) => e.text ?? e.with ?? "").join("\n");
+    checkPageCitations(added, w);
     items.push({
       kind: "page_update",
       key: `update:${u.pageId}`,
