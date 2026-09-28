@@ -85,3 +85,29 @@ export function extractRefCitations(markdown: string): RefCitation[] {
   for (const m of markdown.matchAll(REF_RE)) out.push(parseRefBody(m[1]));
   return out;
 }
+
+/**
+ * Numbers citations by first appearance of each token and collects each
+ * token's distinct quotes, for rendering `[N]` superscripts and `{{refbox}}`.
+ *
+ * @example
+ * const { ordinalMap, quotesMap } = buildRefMaps(extractRefCitations(markdown));
+ */
+export function buildRefMaps(citations: RefCitation[]): {
+  ordinalMap: Map<string, number>;
+  quotesMap: Map<string, string[]>;
+} {
+  const ordinalMap = new Map<string, number>();
+  const quotesMap = new Map<string, Set<string>>();
+  for (const { token, quotes } of citations) {
+    if (!ordinalMap.has(token)) {
+      ordinalMap.set(token, ordinalMap.size + 1);
+      quotesMap.set(token, new Set());
+    }
+    for (const q of quotes) quotesMap.get(token)!.add(q);
+  }
+  return {
+    ordinalMap,
+    quotesMap: new Map([...quotesMap].map(([t, qs]) => [t, [...qs]])),
+  };
+}

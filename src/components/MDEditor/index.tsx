@@ -59,6 +59,8 @@ interface WikiPage {
   name: string;
   /** URL slug used as the `[[slug]]` token inserted on selection. */
   slug: string;
+  /** Idx of the chapter that introduced the page; null for pages that predate all chapters. */
+  introIdx?: number | null;
 }
 
 interface WikiChapter {
@@ -96,6 +98,12 @@ type WikiLinkMDEditorProps = {
    * is inserted (`[[Episode:Episode 3]]` vs `[[Chapter:Chapter 5]]`).
    */
   chapterType?: string;
+  /**
+   * Latest chapter idx the ref picker may offer (usually the "Writing as of"
+   * chapter). Chapters after it, and pages introduced after it, are hidden so
+   * editors can't cite spoilers. Omit for no cap.
+   */
+  maxChapterIdx?: number | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -175,6 +183,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
     wikiPages,
     wikiChapters = [],
     chapterType,
+    maxChapterIdx,
   } = props;
 
   // Sync MDXEditor's built-in .dark class with the app's class-based theme.
@@ -744,6 +753,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
           value={{
             openRefEditMenu,
             openRefInsertMenu,
+            maxChapterIdx: maxChapterIdx ?? null,
           }}
         >
           <MDXEditorClient

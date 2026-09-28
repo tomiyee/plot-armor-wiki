@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,8 +9,6 @@ import { Text } from "@/components/ui/Text";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
-import { RefQuotes } from "@/components/RefCitationSup";
-import { REFBOX_LINE_RE } from "@/lib/refs";
 import {
   WikiPageRefsProvider,
   useWikiPageRefs,
@@ -42,7 +40,7 @@ type SuggestionContext = {
   /** The chapter the user is currently reading up to. */
   readingChapterId: number | null;
   /** Wiki pages for `[[Page]]` autocomplete in the editor. */
-  wikiPagesList: { name: string; slug: string }[];
+  wikiPagesList: { name: string; slug: string; introIdx?: number | null }[];
   /** Chapters for `[[Chapter:Name]]` autocomplete. */
   wikiChaptersList: { name: string; idx: number }[];
   /** All of the current user's suggestions for this page, most recent first. */
@@ -139,44 +137,6 @@ function SubPageList(props: SubPageListProps) {
   );
 }
 
-type RefListProps = {
-  /** Token → page-wide ordinal. */
-  ordinalMap: Map<string, number>;
-  /** Token → distinct quotes cited for it anywhere on the page. */
-  quotesMap: Map<string, string[]>;
-  serialSlug?: string;
-  pageTitles?: Record<string, string>;
-  chapterType?: string;
-  wikiChapters?: Record<string, number>;
-};
-
-// The expanded `{{refbox}}`: one entry per cited target with a back-link to
-// its first citation, a hover-card wiki link, and every quote cited for it.
-function RefList(props: RefListProps) {
-  const { ordinalMap, quotesMap, ...markdownProps } = props;
-  if (ordinalMap.size === 0) return null;
-  return (
-    <ol className="mb-4 flex flex-col gap-2 text-sm">
-      {[...ordinalMap.entries()].map(([token, n]) => (
-        <li key={token} id={`ref-${n}`} className="flex gap-2">
-          <a
-            href={`#ref-cite-${n}`}
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-          >
-            [{n}]
-          </a>
-          <div className="flex min-w-0 flex-col gap-1">
-            <MarkdownRenderer sm {...markdownProps} className="[&_p]:mb-0">
-              {`[[${token}]]`}
-            </MarkdownRenderer>
-            <RefQuotes quotes={quotesMap.get(token) ?? []} />
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 type RefAwareMarkdownProps = {
   /** Stable key identifying this section in the global refs registry (e.g. `"section-42"`). */
   sectionKey: string;
@@ -200,24 +160,14 @@ type RefAwareMarkdownProps = {
 function RefAwareMarkdown(props: RefAwareMarkdownProps) {
   const { sectionKey, markdown, ...rest } = props;
   const { ordinalMap, quotesMap } = useWikiPageRefs(sectionKey, markdown);
-  // Each `{{refbox}}` line splits the markdown; the reference list renders in
-  // its place between the surrounding chunks.
-  const chunks = markdown.split(REFBOX_LINE_RE);
   return (
-    <>
-      {chunks.map((chunk, i) => (
-        <Fragment key={i}>
-          {i > 0 && (
-            <RefList ordinalMap={ordinalMap} quotesMap={quotesMap} {...rest} />
-          )}
-          {chunk.trim() && (
-            <MarkdownRenderer refOrdinalMap={ordinalMap} {...rest}>
-              {chunk}
-            </MarkdownRenderer>
-          )}
-        </Fragment>
-      ))}
-    </>
+    <MarkdownRenderer
+      refOrdinalMap={ordinalMap}
+      refQuotesMap={quotesMap}
+      {...rest}
+    >
+      {markdown}
+    </MarkdownRenderer>
   );
 }
 

@@ -415,12 +415,13 @@ export default function HelpPage() {
                 {"{{ref|…}}"}
               </code>{" "}
               chip at the cursor. Clicking an existing ref chip reopens the
-              picker so you can change the target. A live preview of the
-              deduplicated reference list is shown wherever{" "}
+              picker so you can change the target. The picker lists only pages
+              and chapters up to the chapter you are writing as of, so you
+              can&apos;t cite spoilers by accident. In the editor,{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono">
                 {"{{refbox}}"}
               </code>{" "}
-              appears in the editor.
+              shows as a &ldquo;References list&rdquo; chip.
             </Text>
           </div>
         </section>

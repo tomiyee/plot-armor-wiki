@@ -25,7 +25,10 @@ export const RefContext = createContext<{
    * Called from InsertRefButton.
    */
   openRefInsertMenu: (el: HTMLElement) => void;
+  /** Spoiler cap for the ref picker: latest selectable chapter idx, or null for none. */
+  maxChapterIdx: number | null;
 }>({
   openRefEditMenu: () => {},
   openRefInsertMenu: () => {},
+  maxChapterIdx: null,
 });

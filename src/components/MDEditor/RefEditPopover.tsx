@@ -11,6 +11,7 @@ import {
 import { PlusIcon, XIcon } from "lucide-react";
 import { Textarea } from "@/components/ui/Textarea";
 import { WikiLinkContext } from "./WikiLinkContext";
+import { RefContext } from "./RefContext";
 import { Select, type Option } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
@@ -47,7 +48,25 @@ type RefEditPopoverProps = {
 export function RefEditPopover(props: RefEditPopoverProps) {
   const { anchorEl, initialToken, initialQuotes = [], onConfirm, onClose } =
     props;
-  const { wikiPages, wikiChapters, chapterType } = useContext(WikiLinkContext);
+  const { wikiPages: allPages, wikiChapters: allChapters, chapterType } =
+    useContext(WikiLinkContext);
+  const { maxChapterIdx } = useContext(RefContext);
+
+  // Spoiler cap: only offer targets that exist as of the chapter being written.
+  const wikiPages = useMemo(
+    () =>
+      maxChapterIdx === null
+        ? allPages
+        : allPages.filter((p) => p.introIdx == null || p.introIdx <= maxChapterIdx),
+    [allPages, maxChapterIdx],
+  );
+  const wikiChapters = useMemo(
+    () =>
+      maxChapterIdx === null
+        ? allChapters
+        : allChapters.filter((c) => c.idx <= maxChapterIdx),
+    [allChapters, maxChapterIdx],
+  );
 
   const [selectedToken, setSelectedToken] = useState<string | undefined>(
     initialToken,

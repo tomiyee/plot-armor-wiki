@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import type { PluggableList } from "unified";
 import remarkGfm from "remark-gfm";
@@ -9,6 +10,8 @@ import { remarkRefs } from "@/lib/remark-refs";
 import { WikiLinkPreview } from "@/components/WikiLinkPreview";
 import { ChapterLinkPreview } from "@/components/ChapterLinkPreview";
 import { RefCitationSup } from "@/components/RefCitationSup";
+import { RefList } from "@/components/RefList";
+import { REFBOX_LINE_RE, buildRefMaps, extractRefCitations } from "@/lib/refs";
 
 type MarkdownRendererProps = {
   /** Raw markdown string to render. */
@@ -49,6 +52,11 @@ type MarkdownRendererProps = {
    * Obtain this from `useWikiPageRefs` in read mode.
    */
   refOrdinalMap?: Map<string, number>;
+  /**
+   * Token → quotes for the `{{refbox}}` list, paired with `refOrdinalMap`.
+   * When omitted, both maps are computed from this markdown alone.
+   */
+  refQuotesMap?: Map<string, string[]>;
 };
 
 const COMPONENTS: Components = {
@@ -329,7 +337,21 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
     chapterType,
     wikiChapters,
     refOrdinalMap,
+    refQuotesMap,
   } = props;
+
+  // `{{refbox}}` lines split the markdown; a RefList renders in place of each.
+  // Without page-level maps, number refs across the whole string so every
+  // chunk and the list agree.
+  const hasRefbox = children.includes("{{refbox}}");
+  let ordinalMap = refOrdinalMap;
+  let quotesMap = refQuotesMap;
+  if (hasRefbox && (!ordinalMap || !quotesMap)) {
+    const local = buildRefMaps(extractRefCitations(children));
+    ordinalMap ??= local.ordinalMap;
+    quotesMap ??= local.quotesMap;
+  }
+  const chunks = hasRefbox ? children.split(REFBOX_LINE_RE) : [children];
 
   const remarkPlugins: PluggableList = [remarkGfm];
   if (serialSlug) {
@@ -340,7 +362,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
       }),
     );
   }
-  remarkPlugins.push(remarkRefs({ externalOrdinalMap: refOrdinalMap }));
+  remarkPlugins.push(remarkRefs({ externalOrdinalMap: ordinalMap }));
 
   const baseComponents = sm ? SM_COMPONENTS : COMPONENTS;
   const components: Components = serialSlug
@@ -353,13 +375,29 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
 
   return (
     <div className={cn("max-w-none", className)}>
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={[rehypeRaw]}
-        components={components}
-      >
-        {children}
-      </ReactMarkdown>
+      {chunks.map((chunk, i) => (
+        <Fragment key={i}>
+          {i > 0 && (
+            <RefList
+              ordinalMap={ordinalMap!}
+              quotesMap={quotesMap!}
+              serialSlug={serialSlug}
+              pageTitles={pageTitles}
+              chapterType={chapterType}
+              wikiChapters={wikiChapters}
+            />
+          )}
+          {chunk.trim() && (
+            <ReactMarkdown
+              remarkPlugins={remarkPlugins}
+              rehypePlugins={[rehypeRaw]}
+              components={components}
+            >
+              {chunk}
+            </ReactMarkdown>
+          )}
+        </Fragment>
+      ))}
     </div>
   );
 }

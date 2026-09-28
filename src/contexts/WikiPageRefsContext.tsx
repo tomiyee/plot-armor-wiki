@@ -9,31 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { extractRefCitations, type RefCitation } from "@/lib/refs";
-
-/**
- * Walks `orderedSectionKeys` in order, assigning 1-based ordinals to each
- * token on its first appearance across all sections, and collecting each
- * token's distinct quotes in first-appearance order.
- */
-function computeRefMaps(
-  orderedSectionKeys: string[],
-  registry: Map<string, RefCitation[]>,
-): { ordinalMap: Map<string, number>; quotesMap: Map<string, string[]> } {
-  const ordinalMap = new Map<string, number>();
-  const quotesMap = new Map<string, string[]>();
-  for (const key of orderedSectionKeys) {
-    for (const { token, quotes } of registry.get(key) ?? []) {
-      if (!ordinalMap.has(token)) {
-        ordinalMap.set(token, ordinalMap.size + 1);
-        quotesMap.set(token, []);
-      }
-      const list = quotesMap.get(token)!;
-      for (const q of quotes) if (!list.includes(q)) list.push(q);
-    }
-  }
-  return { ordinalMap, quotesMap };
-}
+import { buildRefMaps, extractRefCitations, type RefCitation } from "@/lib/refs";
 
 type WikiPageRefsContextValue = {
   /** Global token→ordinal map, computed across all registered sections in page order. */
@@ -107,7 +83,8 @@ export function WikiPageRefsProvider(props: WikiPageRefsProviderProps) {
   });
 
   const { ordinalMap, quotesMap } = useMemo(
-    () => computeRefMaps(orderedSectionKeys, registry),
+    () =>
+      buildRefMaps(orderedSectionKeys.flatMap((key) => registry.get(key) ?? [])),
     [orderedSectionKeys, registry],
   );
 
