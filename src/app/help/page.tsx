@@ -61,6 +61,12 @@ export default function HelpPage() {
           >
             Suggesting edits
           </Link>
+          <Link
+            href="#inline-citations"
+            className="text-sm text-primary hover:underline"
+          >
+            Inline citations
+          </Link>
         </nav>
 
         {/* ── Section 1 ──────────────────────────────────────────────────────── */}
@@ -312,6 +318,95 @@ export default function HelpPage() {
         </section>
 
         {/* ── Section 5 ──────────────────────────────────────────────────────── */}
+        <section
+          id="inline-citations"
+          className="flex flex-col gap-4 scroll-mt-16"
+        >
+          <Text variant="h2">Inline citations</Text>
+          <Text>
+            You can cross-reference related pages and chapters inline with the
+            ref system. Two syntaxes are supported:
+          </Text>
+
+          <div className="flex flex-col gap-2">
+            <Text variant="h3">Citing a source inline</Text>
+            <Text>
+              Use{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-sm font-mono">
+                {"{{ref|page:slug}}"}
+              </code>{" "}
+              or{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-sm font-mono">
+                {"{{ref|chapter:Name}}"}
+              </code>{" "}
+              anywhere in a sentence. It renders as a clickable superscript
+              ordinal like{" "}
+              <sup>
+                <a href="#" className="text-primary">[1]</a>
+              </sup>{" "}
+              that links to the corresponding entry in the reference list.
+            </Text>
+            <pre className="rounded-md bg-muted px-4 py-3 text-sm font-mono overflow-x-auto">
+              {`Luffy is the captain of the Straw Hat Pirates.{{ref|page:luffy}}\nNami joined after the Arlong Arc.{{ref|chapter:Chapter 8}}`}
+            </pre>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Text variant="h3">Deduplication</Text>
+            <Text>
+              If you cite the same page or chapter more than once, all
+              occurrences share the same ordinal number, assigned by first
+              appearance in document order.
+            </Text>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Text variant="h3">Adding quotes (optional)</Text>
+            <Text>
+              A citation can carry one or more exact quotes as evidence. In the
+              editor, click a ref chip and choose{" "}
+              <strong>Add quote (optional)</strong>. Hovering a citation shows
+              only the quotes attached to that citation; the reference list
+              shows every quote cited for each target.
+            </Text>
+            <pre className="rounded-md bg-muted px-4 py-3 text-sm font-mono overflow-x-auto">
+              {`Luffy vows to become king.{{ref|chapter:Chapter 1|quote=I'm gonna be King of the Pirates!}}`}
+            </pre>
+            <Text muted className="text-sm">
+              Quotes are stored percent-encoded where needed (for example{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">|</code>{" "}
+              becomes{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">%7C</code>
+              ). The editor handles this for you.
+            </Text>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Text variant="h3">The reference list</Text>
+            <Text>
+              A numbered reference list is added automatically at the end of
+              any page that has citations. You do not need to add it yourself.
+            </Text>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Text variant="h3">Editor support</Text>
+            <Text>
+              In the WYSIWYG editor, click the{" "}
+              <strong>Insert reference</strong> toolbar button (bookmark icon) to
+              open a page/chapter picker and insert a{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                {"{{ref|…}}"}
+              </code>{" "}
+              chip at the cursor. Clicking an existing ref chip reopens the
+              picker so you can change the target. The picker lists only pages
+              and chapters up to the chapter you are writing as of, so you
+              can&apos;t cite spoilers by accident.
+            </Text>
+          </div>
+        </section>
+
+        {/* ── Section 6 ──────────────────────────────────────────────────────── */}
         <section
           id="suggesting-edits"
           className="flex flex-col gap-4 scroll-mt-16"

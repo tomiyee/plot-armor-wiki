@@ -28,7 +28,7 @@ type PageContentEditorProps = {
   /** Slug of the parent serial, used to resolve wiki links. */
   serialSlug: string;
   /** All wiki pages in this serial for `[[Page]]` autocomplete. */
-  wikiPages: { name: string; slug: string }[];
+  wikiPages: { name: string; slug: string; introIdx?: number | null }[];
   /** Chapters for `[[Chapter:Name]]` autocomplete in the editor. */
   wikiChapters?: { name: string; idx: number }[];
   /** The serial's chapter type label (e.g. `"Chapter"`). */
@@ -160,6 +160,7 @@ export function PageContentEditor(props: PageContentEditorProps) {
         serialSlug={serialSlug}
         wikiChapters={wikiChapters}
         chapterType={chapterType}
+        maxChapterIdx={selectedChapterIdx}
       />
 
       <RemoveRevisionDialog

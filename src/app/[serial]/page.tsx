@@ -138,6 +138,7 @@ export default async function SerialPage(props: SerialPageProps) {
   const wikiPages = rawWikiPages.map((p) => ({
     name: wikiTitleByPageId.get(p.id) ?? p.name,
     slug: p.slug,
+    introIdx: p.introIdx,
   }));
 
   // ── Home page content ─────────────────────────────────────────────────────

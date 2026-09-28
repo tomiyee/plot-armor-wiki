@@ -92,6 +92,7 @@ export default async function PageView(props: PageViewProps) {
   const wikiPages = rawWikiPages.map((p) => ({
     name: wikiTitleByPageId.get(p.id) ?? p.name,
     slug: p.slug,
+    introIdx: p.introIdx,
   }));
 
   // The home page is canonical at /{serial}; visiting /{serial}/home redirects there.

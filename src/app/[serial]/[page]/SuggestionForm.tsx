@@ -40,7 +40,7 @@ type SuggestionFormProps = {
    */
   readingChapterId: number | null;
   /** Wiki pages for `[[Page]]` autocomplete in the editor. */
-  wikiPages: { name: string; slug: string }[];
+  wikiPages: { name: string; slug: string; introIdx?: number | null }[];
   /** Chapter name → idx map for `[[Chapter:Name]]` autocomplete. */
   wikiChapters?: { name: string; idx: number }[];
   /** The serial's chapter type label (e.g. "Chapter", "Episode"). */
@@ -321,6 +321,7 @@ export function SuggestionForm(props: SuggestionFormProps) {
             serialSlug={serialSlug}
             wikiChapters={wikiChapters}
             chapterType={chapterType}
+            maxChapterIdx={selectedChapterIdx}
           />
         </Box>
 
@@ -343,6 +344,7 @@ export function SuggestionForm(props: SuggestionFormProps) {
             serialSlug={serialSlug}
             wikiChapters={wikiChapters}
             chapterType={chapterType}
+            maxChapterIdx={selectedChapterIdx}
           />
         </Box>
 
