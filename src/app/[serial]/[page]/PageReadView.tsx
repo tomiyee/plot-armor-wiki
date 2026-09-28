@@ -12,7 +12,6 @@ import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 import {
   WikiPageRefsProvider,
   useWikiPageRefOrdinals,
-  useWikiPageOrdinalMap,
 } from "@/contexts/WikiPageRefsContext";
 import { SuggestionForm } from "./SuggestionForm";
 import type { ChapterData } from "./types";
@@ -138,6 +137,22 @@ function SubPageList(props: SubPageListProps) {
   );
 }
 
+const REFBOX_LINE_RE = /^[ \t]*\{\{refbox\}\}[ \t]*$/gm;
+
+// Replaces each `{{refbox}}` line with a list of the page's refs, one
+// "- <a id="ref-N" href="#ref-cite-N">[N]</a> [[token]]" line per entry.
+// remarkWikiLinks turns [[token]] into a hover-card link; rehypeRaw renders the anchor.
+function expandRefbox(markdown: string, ordinalMap: Map<string, number>) {
+  if (!markdown.includes("{{refbox}}")) return markdown;
+  const list = [...ordinalMap.entries()]
+    .map(
+      ([token, n]) =>
+        `- <a id="ref-${n}" href="#ref-cite-${n}">[${n}]</a> [[${token}]]`,
+    )
+    .join("\n");
+  return markdown.replace(REFBOX_LINE_RE, list ? `\n${list}\n` : "");
+}
+
 type RefAwareMarkdownProps = {
   /** Stable key identifying this section in the global refs registry (e.g. `"section-42"`). */
   sectionKey: string;
@@ -163,62 +178,8 @@ function RefAwareMarkdown(props: RefAwareMarkdownProps) {
   const refOrdinalMap = useWikiPageRefOrdinals(sectionKey, markdown);
   return (
     <MarkdownRenderer refOrdinalMap={refOrdinalMap} {...rest}>
-      {markdown}
+      {expandRefbox(markdown, refOrdinalMap)}
     </MarkdownRenderer>
-  );
-}
-
-type RefboxProps = {
-  /** Serial slug for link generation. */
-  serialSlug: string;
-  /** Slug → title map for page link display text. */
-  pageTitles?: Record<string, string>;
-  /** Serial's chapter type label. */
-  chapterType?: string;
-  /** Chapter name → idx map for chapter link resolution. */
-  wikiChapters?: Record<string, number>;
-};
-
-/**
- * Renders an automatic reference list when the page has at least one `{{ref|…}}`.
- * Must be rendered inside `WikiPageRefsProvider`. Only shows when the global
- * ordinal map is non-empty.
- *
- * Builds an unordered-list markdown string from the ordinal map and passes it
- * to `MarkdownRenderer` so `remarkWikiLinks` resolves each token to a hover-card
- * link — no `{{refbox}}` syntax involved.
- *
- * @example
- * <Refbox serialSlug="one-piece" pageTitles={pageTitles} chapterType="Chapter" />
- */
-function Refbox(props: RefboxProps) {
-  const { serialSlug, pageTitles, chapterType, wikiChapters } = props;
-  const ordinalMap = useWikiPageOrdinalMap();
-  if (ordinalMap.size === 0) return null;
-
-  // Build "- <a id="ref-N" href="#ref-cite-N">[N]</a> [[token]]" lines.
-  // remarkWikiLinks converts [[token]] to a link; rehypeRaw renders the anchor.
-  const markdown = [...ordinalMap.entries()]
-    .map(
-      ([token, n]) =>
-        `- <a id="ref-${n}" href="#ref-cite-${n}">[${n}]</a> [[${token}]]`,
-    )
-    .join("\n");
-
-  return (
-    <div className="clear-right mt-6 pt-6 border-t border-border">
-      <Text variant="h3" className="mb-3">
-        References
-      </Text>
-      <MarkdownRenderer
-        serialSlug={serialSlug}
-        pageTitles={pageTitles}
-        chapterType={chapterType}
-        wikiChapters={wikiChapters}
-      >
-        {markdown}
-      </MarkdownRenderer>
-    </div>
   );
 }
 
@@ -487,13 +448,6 @@ export function PageReadView(props: PageReadViewProps) {
           />
         )}
       </div>
-
-      <Refbox
-        serialSlug={serialSlug}
-        pageTitles={pageTitles}
-        chapterType={chapterType}
-        wikiChapters={wikiChapters}
-      />
 
       <div className="clear-right mt-6 pt-6 border-t border-border">
         <div className="group flex items-center gap-2 mb-3">
