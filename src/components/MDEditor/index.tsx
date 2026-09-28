@@ -44,6 +44,7 @@ import { InsertRefButton } from "./InsertRefButton";
 import { RefNode, $isRefNode } from "./RefNode";
 import { RefEditPopover } from "./RefEditPopover";
 import { refPlugin, refToMarkdownExtension } from "./RefVisitors";
+import { formatRef } from "@/lib/refs";
 import { normalizeMarkdown, prepareMarkdownForEditor } from "./normalizeMarkdown";
 import {
   useApplySuggestion,
@@ -220,6 +221,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
     nodeKey: string | null;
     anchorEl: HTMLElement;
     initialToken: string;
+    initialQuotes: string[];
   } | null>(null);
 
   useEffect(() => {
@@ -530,7 +532,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
    * Opens the insert-ref popover anchored to the toolbar button element.
    */
   const openRefInsertMenu = useCallback((anchorEl: HTMLElement) => {
-    setRefEditState({ nodeKey: null, anchorEl, initialToken: "" });
+    setRefEditState({ nodeKey: null, anchorEl, initialToken: "", initialQuotes: [] });
   }, []);
 
   /**
@@ -545,12 +547,16 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
       const lexEditor = editorEl ? getNearestEditorFromDOMNode(editorEl) : null;
       if (!lexEditor) return;
       let token = "";
+      let quotes: string[] = [];
       lexEditor.read(() => {
         const node = $getNodeByKey(nodeKey);
-        if ($isRefNode(node)) token = node.__token;
+        if ($isRefNode(node)) {
+          token = node.__token;
+          quotes = node.__quotes;
+        }
       });
       if (!token) return;
-      setRefEditState({ nodeKey, anchorEl, initialToken: token });
+      setRefEditState({ nodeKey, anchorEl, initialToken: token, initialQuotes: quotes });
     },
     [],
   );
@@ -559,7 +565,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
    * Inserts a `{{ref|token}}` RefNode at the current Lexical cursor position.
    */
   const insertRef = useCallback(
-    (token: string) => {
+    (token: string, quotes: string[]) => {
       const editorEl = containerRef.current?.querySelector<HTMLElement>(
         '[contenteditable="true"]',
       );
@@ -570,7 +576,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
         lexEditor.update(() => {
           const sel = $getSelection();
           if ($isRangeSelection(sel)) {
-            sel.insertNodes([new RefNode(token)]);
+            sel.insertNodes([new RefNode(token, quotes)]);
           }
         });
         requestAnimationFrame(() => {
@@ -581,7 +587,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
 
       // Fallback: append at end of document.
       const current = lastEmittedRef.current;
-      const refText = `{{ref|${token}}}`;
+      const refText = formatRef({ token, quotes });
       const newMarkdown = current ? `${current}\n${refText}` : refText;
       isApplyingRef.current = true;
       editorRef.current?.setMarkdown(newMarkdown);
@@ -600,13 +606,13 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
    * new one when opened from the toolbar button (nodeKey === null).
    */
   const handleRefEditConfirm = useCallback(
-    (token: string) => {
+    (token: string, quotes: string[]) => {
       if (!refEditState) return;
       const { nodeKey } = refEditState;
       setRefEditState(null);
 
       if (nodeKey === null) {
-        insertRef(token);
+        insertRef(token, quotes);
         requestAnimationFrame(() => focusEditor());
         return;
       }
@@ -623,6 +629,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
         if ($isRefNode(node)) {
           const writable = node.getWritable();
           writable.__token = token;
+          writable.__quotes = quotes;
         }
       });
       requestAnimationFrame(() => {
@@ -767,6 +774,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
             <RefEditPopover
               anchorEl={refEditState.anchorEl}
               initialToken={refEditState.initialToken}
+              initialQuotes={refEditState.initialQuotes}
               onConfirm={handleRefEditConfirm}
               onClose={() => {
                 setRefEditState(null);

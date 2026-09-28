@@ -122,6 +122,7 @@ Write mutations (inserts/updates/deletes) directly in the Server Action that own
 | `src/hooks/useServerAction.ts` | Wraps a Server Action in `useTransition` + `router.refresh()`. Use in all Client Components calling Server Actions. |
 | `src/hooks/usePersistedStore.ts` | `useState`-compatible, backed by `localStorage`. SSR-safe via `useSyncExternalStore`, cross-tab via `storage` event. |
 | `src/lib/serial-types.ts` | `ChapterType`/`VolumeType` types, arrays, parsers, Select options. Single source of truth — don't duplicate. |
+| `src/lib/refs.ts` | `{{ref\|token\|quote=…}}` parse/format shared by renderer, editor, and `WikiPageRefsContext`. Quotes are optional, repeatable, and percent-encoded; ordinals key on the token only. `{{refbox}}` renders in place via `PageReadView`. |
 
 ### React import conventions
 

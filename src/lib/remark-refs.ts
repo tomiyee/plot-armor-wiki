@@ -1,10 +1,12 @@
 import { findAndReplace } from "mdast-util-find-and-replace";
 import type { Root, Text, Html, Nodes } from "mdast";
 import type { Plugin } from "unified";
+import { REF_RE, parseRefBody } from "./refs";
 
 /**
- * Remark plugin that transforms `{{ref|token}}` inline citations into numbered
- * superscript anchors.
+ * Remark plugin that transforms `{{ref|token}}` / `{{ref|token|quote=…}}` inline
+ * citations into numbered superscript anchors. Numbering is keyed on the token
+ * only, so citing the same target with different quotes shares one ordinal.
  *
  * Two-pass strategy:
  *   Pass 1 — walk all text nodes, collect `{{ref|…}}` tokens in document order,
@@ -19,8 +21,6 @@ import type { Plugin } from "unified";
  * @example
  * remarkPlugins={[remarkWikiLinks(serialSlug, pageTitles, opts), remarkRefs({ externalOrdinalMap })]}
  */
-
-const REF_RE = /\{\{ref\|([^}]+)\}\}/g;
 
 /**
  * Returns the remark-refs plugin.
@@ -57,7 +57,7 @@ export function remarkRefs(options?: {
         REF_RE.lastIndex = 0;
         let m: RegExpExecArray | null;
         while ((m = REF_RE.exec(text)) !== null) {
-          const token = m[1].trim();
+          const { token } = parseRefBody(m[1]);
           if (!ordinalMap.has(token)) {
             ordinalMap.set(token, ordinalMap.size + 1);
           }
@@ -70,13 +70,18 @@ export function remarkRefs(options?: {
     // ── Pass 2: replace {{ref|token}} with superscript html nodes ───────────
     findAndReplace(tree, [
       REF_RE,
-      (match: string, tokenRaw: string) => {
+      (match: string, body: string) => {
         void match;
-        const token = tokenRaw.trim();
+        const { token, quotes } = parseRefBody(body);
         const n = ordinalMap.get(token) ?? ordinalMap.size + 1;
+        // Quotes ride along on the element so the hover card can show only
+        // the quotes attached to this specific citation.
+        const quotesAttr = quotes.length
+          ? ` data-ref-quotes="${encodeURIComponent(JSON.stringify(quotes))}"`
+          : "";
         return {
           type: "html",
-          value: `<sup id="ref-cite-${n}" data-ref-token="${encodeURIComponent(token)}">[${n}]</sup>`,
+          value: `<sup id="ref-cite-${n}" data-ref-token="${encodeURIComponent(token)}"${quotesAttr}>[${n}]</sup>`,
         } as Html;
       },
     ]);

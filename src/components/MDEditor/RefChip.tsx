@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useContext, useRef } from "react";
+import { Quote } from "lucide-react";
 import { RefContext } from "./RefContext";
 import {
   WIKI_LINK_CHIP_BASE,
@@ -10,6 +11,8 @@ import {
 type RefChipProps = {
   /** Ref token in `category:value` format, e.g. `page:luffy`. */
   token: string;
+  /** Number of quotes attached; shows a quote badge when > 0. */
+  quoteCount?: number;
   /**
    * Lexical node key for this chip. When provided, clicking the chip opens
    * the edit popover via `RefContext.openRefEditMenu`.
@@ -28,7 +31,7 @@ type RefChipProps = {
  * <RefChip token="Chapter:Chapter 5" nodeKey={node.__key} />
  */
 export function RefChip(props: RefChipProps) {
-  const { token, nodeKey } = props;
+  const { token, quoteCount = 0, nodeKey } = props;
   const { openRefEditMenu } = useContext(RefContext);
   const spanRef = useRef<HTMLSpanElement>(null);
 
@@ -50,6 +53,15 @@ export function RefChip(props: RefChipProps) {
     >
       <span className="text-xs text-muted-foreground mr-0.5">ref</span>
       {displayValue}
+      {quoteCount > 0 && (
+        <span
+          className="ml-1 inline-flex items-center gap-0.5 text-xs text-muted-foreground"
+          title={`${quoteCount} quote${quoteCount === 1 ? "" : "s"}`}
+        >
+          <Quote className="size-3" />
+          {quoteCount > 1 && quoteCount}
+        </span>
+      )}
     </span>
   );
 }

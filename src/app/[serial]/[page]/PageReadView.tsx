@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,9 +9,11 @@ import { Text } from "@/components/ui/Text";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
+import { RefQuotes } from "@/components/RefCitationSup";
+import { REFBOX_LINE_RE } from "@/lib/refs";
 import {
   WikiPageRefsProvider,
-  useWikiPageRefOrdinals,
+  useWikiPageRefs,
 } from "@/contexts/WikiPageRefsContext";
 import { SuggestionForm } from "./SuggestionForm";
 import type { ChapterData } from "./types";
@@ -137,20 +139,42 @@ function SubPageList(props: SubPageListProps) {
   );
 }
 
-const REFBOX_LINE_RE = /^[ \t]*\{\{refbox\}\}[ \t]*$/gm;
+type RefListProps = {
+  /** Token → page-wide ordinal. */
+  ordinalMap: Map<string, number>;
+  /** Token → distinct quotes cited for it anywhere on the page. */
+  quotesMap: Map<string, string[]>;
+  serialSlug?: string;
+  pageTitles?: Record<string, string>;
+  chapterType?: string;
+  wikiChapters?: Record<string, number>;
+};
 
-// Replaces each `{{refbox}}` line with a list of the page's refs, one
-// "- <a id="ref-N" href="#ref-cite-N">[N]</a> [[token]]" line per entry.
-// remarkWikiLinks turns [[token]] into a hover-card link; rehypeRaw renders the anchor.
-function expandRefbox(markdown: string, ordinalMap: Map<string, number>) {
-  if (!markdown.includes("{{refbox}}")) return markdown;
-  const list = [...ordinalMap.entries()]
-    .map(
-      ([token, n]) =>
-        `- <a id="ref-${n}" href="#ref-cite-${n}">[${n}]</a> [[${token}]]`,
-    )
-    .join("\n");
-  return markdown.replace(REFBOX_LINE_RE, list ? `\n${list}\n` : "");
+// The expanded `{{refbox}}`: one entry per cited target with a back-link to
+// its first citation, a hover-card wiki link, and every quote cited for it.
+function RefList(props: RefListProps) {
+  const { ordinalMap, quotesMap, ...markdownProps } = props;
+  if (ordinalMap.size === 0) return null;
+  return (
+    <ol className="mb-4 flex flex-col gap-2 text-sm">
+      {[...ordinalMap.entries()].map(([token, n]) => (
+        <li key={token} id={`ref-${n}`} className="flex gap-2">
+          <a
+            href={`#ref-cite-${n}`}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            [{n}]
+          </a>
+          <div className="flex min-w-0 flex-col gap-1">
+            <MarkdownRenderer sm {...markdownProps} className="[&_p]:mb-0">
+              {`[[${token}]]`}
+            </MarkdownRenderer>
+            <RefQuotes quotes={quotesMap.get(token) ?? []} />
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
 }
 
 type RefAwareMarkdownProps = {
@@ -175,11 +199,25 @@ type RefAwareMarkdownProps = {
  */
 function RefAwareMarkdown(props: RefAwareMarkdownProps) {
   const { sectionKey, markdown, ...rest } = props;
-  const refOrdinalMap = useWikiPageRefOrdinals(sectionKey, markdown);
+  const { ordinalMap, quotesMap } = useWikiPageRefs(sectionKey, markdown);
+  // Each `{{refbox}}` line splits the markdown; the reference list renders in
+  // its place between the surrounding chunks.
+  const chunks = markdown.split(REFBOX_LINE_RE);
   return (
-    <MarkdownRenderer refOrdinalMap={refOrdinalMap} {...rest}>
-      {expandRefbox(markdown, refOrdinalMap)}
-    </MarkdownRenderer>
+    <>
+      {chunks.map((chunk, i) => (
+        <Fragment key={i}>
+          {i > 0 && (
+            <RefList ordinalMap={ordinalMap} quotesMap={quotesMap} {...rest} />
+          )}
+          {chunk.trim() && (
+            <MarkdownRenderer refOrdinalMap={ordinalMap} {...rest}>
+              {chunk}
+            </MarkdownRenderer>
+          )}
+        </Fragment>
+      ))}
+    </>
   );
 }
 

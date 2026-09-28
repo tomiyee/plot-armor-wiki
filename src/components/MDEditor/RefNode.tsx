@@ -10,18 +10,20 @@ import {
   type LexicalNode,
 } from "lexical";
 import { RefChip } from "./RefChip";
+import { formatRef } from "@/lib/refs";
 
 // ── RefNode ──────────────────────────────────────────────────────────────────
 
 interface SerializedRefNode extends SerializedLexicalNode {
   token: string;
+  quotes?: string[];
 }
 
 /**
  * Custom Lexical DecoratorNode for inline reference citations.
  *
- * Stores the raw token string (e.g. `page:luffy` or `Chapter:Chapter 5`).
- * On export, produces `{{ref|token}}` so the markdown stored in the DB
+ * Stores the raw token string (e.g. `page:luffy` or `Chapter:Chapter 5`) and
+ * any optional quotes. On export, produces `{{ref|token|quote=…}}` so the markdown stored in the DB
  * round-trips correctly through the remark-refs plugin.
  *
  * @example
@@ -29,22 +31,24 @@ interface SerializedRefNode extends SerializedLexicalNode {
  */
 export class RefNode extends DecoratorNode<ReactElement> {
   __token: string;
+  __quotes: string[];
 
   static getType(): string {
     return "ref";
   }
 
   static clone(node: RefNode): RefNode {
-    return new RefNode(node.__token, node.__key);
+    return new RefNode(node.__token, node.__quotes, node.__key);
   }
 
   static importJSON(serialized: SerializedRefNode): RefNode {
-    return new RefNode(serialized.token);
+    return new RefNode(serialized.token, serialized.quotes ?? []);
   }
 
-  constructor(token: string, key?: NodeKey) {
+  constructor(token: string, quotes: string[] = [], key?: NodeKey) {
     super(key);
     this.__token = token;
+    this.__quotes = quotes;
   }
 
   exportJSON(): SerializedRefNode {
@@ -52,6 +56,7 @@ export class RefNode extends DecoratorNode<ReactElement> {
       ...super.exportJSON(),
       type: "ref",
       token: this.__token,
+      quotes: this.__quotes,
       version: 1,
     };
   }
@@ -71,11 +76,17 @@ export class RefNode extends DecoratorNode<ReactElement> {
   }
 
   getTextContent(): string {
-    return `{{ref|${this.__token}}}`;
+    return formatRef({ token: this.__token, quotes: this.__quotes });
   }
 
   decorate(_editor: LexicalEditor, _config: EditorConfig): ReactElement {
-    return <RefChip token={this.__token} nodeKey={this.__key} />;
+    return (
+      <RefChip
+        token={this.__token}
+        quoteCount={this.__quotes.length}
+        nodeKey={this.__key}
+      />
+    );
   }
 }
 

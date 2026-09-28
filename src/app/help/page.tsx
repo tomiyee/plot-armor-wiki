@@ -361,6 +361,27 @@ export default function HelpPage() {
           </div>
 
           <div className="flex flex-col gap-2">
+            <Text variant="h3">Adding quotes (optional)</Text>
+            <Text>
+              A citation can carry one or more exact quotes as evidence. In the
+              editor, click a ref chip and choose{" "}
+              <strong>Add quote (optional)</strong>. Hovering a citation shows
+              only the quotes attached to that citation; the reference list
+              shows every quote cited for each target.
+            </Text>
+            <pre className="rounded-md bg-muted px-4 py-3 text-sm font-mono overflow-x-auto">
+              {`Luffy vows to become king.{{ref|chapter:Chapter 1|quote=I'm gonna be King of the Pirates!}}`}
+            </pre>
+            <Text muted className="text-sm">
+              Quotes are stored percent-encoded where needed (for example{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">|</code>{" "}
+              becomes{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">%7C</code>
+              ). The editor handles this for you.
+            </Text>
+          </div>
+
+          <div className="flex flex-col gap-2">
             <Text variant="h3">Adding the reference list</Text>
             <Text>
               Place{" "}

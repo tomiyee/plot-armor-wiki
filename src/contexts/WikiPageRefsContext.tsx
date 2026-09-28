@@ -9,53 +9,46 @@ import {
   useState,
   type ReactNode,
 } from "react";
-
-const REF_TOKEN_RE = /\{\{ref\|([^}]+)\}\}/g;
-
-/** Extracts first-appearance {{ref|token}} values from a markdown string. */
-function extractRefTokens(markdown: string): string[] {
-  const seen = new Set<string>();
-  const tokens: string[] = [];
-  REF_TOKEN_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = REF_TOKEN_RE.exec(markdown)) !== null) {
-    const token = m[1].trim();
-    if (!seen.has(token)) {
-      seen.add(token);
-      tokens.push(token);
-    }
-  }
-  return tokens;
-}
+import { extractRefCitations, type RefCitation } from "@/lib/refs";
 
 /**
  * Walks `orderedSectionKeys` in order, assigning 1-based ordinals to each
- * token on its first appearance across all sections.
+ * token on its first appearance across all sections, and collecting each
+ * token's distinct quotes in first-appearance order.
  */
-function computeOrdinalMap(
+function computeRefMaps(
   orderedSectionKeys: string[],
-  registry: Map<string, string[]>,
-): Map<string, number> {
-  const map = new Map<string, number>();
+  registry: Map<string, RefCitation[]>,
+): { ordinalMap: Map<string, number>; quotesMap: Map<string, string[]> } {
+  const ordinalMap = new Map<string, number>();
+  const quotesMap = new Map<string, string[]>();
   for (const key of orderedSectionKeys) {
-    for (const token of registry.get(key) ?? []) {
-      if (!map.has(token)) map.set(token, map.size + 1);
+    for (const { token, quotes } of registry.get(key) ?? []) {
+      if (!ordinalMap.has(token)) {
+        ordinalMap.set(token, ordinalMap.size + 1);
+        quotesMap.set(token, []);
+      }
+      const list = quotesMap.get(token)!;
+      for (const q of quotes) if (!list.includes(q)) list.push(q);
     }
   }
-  return map;
+  return { ordinalMap, quotesMap };
 }
 
 type WikiPageRefsContextValue = {
   /** Global token→ordinal map, computed across all registered sections in page order. */
   ordinalMap: Map<string, number>;
-  /** Adds or replaces a section's token list. Pass an empty array to clear. */
-  registerSection: (key: string, tokens: string[]) => void;
+  /** Token → distinct quotes across all citations of that token, for the reference list. */
+  quotesMap: Map<string, string[]>;
+  /** Adds or replaces a section's citations. Pass an empty array to clear. */
+  registerSection: (key: string, citations: RefCitation[]) => void;
   /** Removes a section's registration entirely (call on unmount). */
   unregisterSection: (key: string) => void;
 };
 
 const WikiPageRefsContext = createContext<WikiPageRefsContextValue>({
   ordinalMap: new Map(),
+  quotesMap: new Map(),
   registerSection: () => {},
   unregisterSection: () => {},
 });
@@ -63,7 +56,7 @@ const WikiPageRefsContext = createContext<WikiPageRefsContextValue>({
 type OrderedSection = {
   /** Stable identifier (e.g. `"infobox-1"`, `"section-42"`). */
   key: string;
-  /** Raw markdown content; scanned for `{{ref|token}}` occurrences. */
+  /** Raw markdown content; scanned for `{{ref|…}}` citations. */
   markdown: string;
 };
 
@@ -89,7 +82,7 @@ type WikiPageRefsProviderProps = {
  * each section's markdown.
  *
  * Wrap the read-mode page content with this provider, then call
- * `useWikiPageRefOrdinals` in each rendered section to receive the global ordinal
+ * `useWikiPageRefs` in each rendered section to receive the global ordinal
  * map and pass it to `MarkdownRenderer` as `refOrdinalMap`.
  *
  * @example
@@ -104,25 +97,25 @@ export function WikiPageRefsProvider(props: WikiPageRefsProviderProps) {
   const { orderedSectionKeys, initialSections, children } = props;
 
   // Pre-seed the registry from initialSections so the first render is correct.
-  const [registry, setRegistry] = useState<Map<string, string[]>>(() => {
-    const map = new Map<string, string[]>();
+  const [registry, setRegistry] = useState<Map<string, RefCitation[]>>(() => {
+    const map = new Map<string, RefCitation[]>();
     for (const { key, markdown } of initialSections) {
-      const tokens = extractRefTokens(markdown);
-      if (tokens.length > 0) map.set(key, tokens);
+      const citations = extractRefCitations(markdown);
+      if (citations.length > 0) map.set(key, citations);
     }
     return map;
   });
 
-  const ordinalMap = useMemo(
-    () => computeOrdinalMap(orderedSectionKeys, registry),
+  const { ordinalMap, quotesMap } = useMemo(
+    () => computeRefMaps(orderedSectionKeys, registry),
     [orderedSectionKeys, registry],
   );
 
-  const registerSection = useCallback((key: string, tokens: string[]) => {
+  const registerSection = useCallback((key: string, citations: RefCitation[]) => {
     setRegistry((prev) => {
       const next = new Map(prev);
-      if (tokens.length === 0) next.delete(key);
-      else next.set(key, tokens);
+      if (citations.length === 0) next.delete(key);
+      else next.set(key, citations);
       return next;
     });
   }, []);
@@ -137,8 +130,8 @@ export function WikiPageRefsProvider(props: WikiPageRefsProviderProps) {
   }, []);
 
   const value = useMemo(
-    () => ({ ordinalMap, registerSection, unregisterSection }),
-    [ordinalMap, registerSection, unregisterSection],
+    () => ({ ordinalMap, quotesMap, registerSection, unregisterSection }),
+    [ordinalMap, quotesMap, registerSection, unregisterSection],
   );
 
   return (
@@ -149,49 +142,34 @@ export function WikiPageRefsProvider(props: WikiPageRefsProviderProps) {
 }
 
 /**
- * Returns the current global token→ordinal map from `WikiPageRefsProvider`
- * without registering any section tokens. Use in components that need to read
- * the ordinal map (e.g. an automatic refbox) but don't contribute refs of their own.
+ * Registers this section's ref citations with the page-level context and
+ * returns the page-wide ordinal and quote maps, so `MarkdownRenderer` numbers
+ * refs consistently across sections and `{{refbox}}` lists every page ref with
+ * its quotes. Unregisters on unmount so ordinals update when sections go away.
  *
- * Must be called inside a `WikiPageRefsProvider`.
- *
- * @example
- * const ordinalMap = useWikiPageOrdinalMap();
- * if (ordinalMap.size === 0) return null;
- */
-export function useWikiPageOrdinalMap(): Map<string, number> {
-  return useContext(WikiPageRefsContext).ordinalMap;
-}
-
-/**
- * Registers this section's ref tokens with the page-level context and returns
- * the full global ordinal map so `MarkdownRenderer` can number refs correctly
- * across all sections. Unregisters on unmount so ordinals update when sections
- * are removed.
- *
- * Must be called inside a `WikiPageRefsProvider`. Pass the returned map to
+ * Must be called inside a `WikiPageRefsProvider`. Pass `ordinalMap` to
  * `MarkdownRenderer` as `refOrdinalMap`.
  *
  * @example
- * const ordinals = useWikiPageRefOrdinals("section-42", section.content);
- * return <MarkdownRenderer refOrdinalMap={ordinals}>{section.content}</MarkdownRenderer>;
+ * const { ordinalMap, quotesMap } = useWikiPageRefs("content", content);
+ * return <MarkdownRenderer refOrdinalMap={ordinalMap}>{content}</MarkdownRenderer>;
  */
-export function useWikiPageRefOrdinals(
+export function useWikiPageRefs(
   sectionKey: string,
   markdown: string,
-): Map<string, number> {
-  const { ordinalMap, registerSection, unregisterSection } = useContext(WikiPageRefsContext);
+): { ordinalMap: Map<string, number>; quotesMap: Map<string, string[]> } {
+  const { ordinalMap, quotesMap, registerSection, unregisterSection } =
+    useContext(WikiPageRefsContext);
 
   // Stable reference: only recomputed when markdown changes.
-  const tokens = useMemo(() => extractRefTokens(markdown), [markdown]);
+  const citations = useMemo(() => extractRefCitations(markdown), [markdown]);
 
   useEffect(() => {
-    registerSection(sectionKey, tokens);
+    registerSection(sectionKey, citations);
     return () => {
       unregisterSection(sectionKey);
     };
-  }, [sectionKey, tokens, registerSection, unregisterSection]);
+  }, [sectionKey, citations, registerSection, unregisterSection]);
 
-  // Return the full global map so {{refbox}} in this section lists all page refs.
-  return ordinalMap;
+  return { ordinalMap, quotesMap };
 }

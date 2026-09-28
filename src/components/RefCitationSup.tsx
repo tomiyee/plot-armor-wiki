@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { HoverCard } from "@/components/ui/HoverCard";
 import { Text } from "@/components/ui/Text";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
@@ -27,6 +28,8 @@ type RefCitationSupProps = {
   id: string;
   /** Inner content of the [[…]] wiki link token (e.g. "page:Luffy"). */
   token: string;
+  /** Exact quotes attached to this specific citation; shown above the target preview. */
+  quotes?: string[];
   /** Serial slug used to scope the preview fetch. */
   serialSlug: string;
   /** slug → title map forwarded to nested MarkdownRenderer instances. */
@@ -46,8 +49,16 @@ type RefCitationSupProps = {
  * <RefCitationSup n={1} id="ref-cite-1" token="page:Luffy" serialSlug="one-piece" />
  */
 export function RefCitationSup(props: RefCitationSupProps) {
-  const { n, id, token, serialSlug, pageTitles, chapterType, wikiChapters } =
-    props;
+  const {
+    n,
+    id,
+    token,
+    quotes = [],
+    serialSlug,
+    pageTitles,
+    chapterType,
+    wikiChapters,
+  } = props;
   const [preview, setPreview] = useState<RefPreviewState>("idle");
 
   const parts = parseWikiLink(token);
@@ -89,6 +100,7 @@ export function RefCitationSup(props: RefCitationSupProps) {
 
   return (
     <HoverCard trigger={trigger}>
+      <RefQuotes quotes={quotes} className="mb-2" />
       <RefPreviewContent
         state={preview}
         pageName={parts?.alias ?? parts?.page ?? token}
@@ -96,6 +108,36 @@ export function RefCitationSup(props: RefCitationSupProps) {
         pageTitles={pageTitles}
       />
     </HoverCard>
+  );
+}
+
+type RefQuotesProps = {
+  /** Quotes to display, rendered as plain text (never markdown). */
+  quotes: string[];
+  className?: string;
+};
+
+/**
+ * Displays citation quotes as plain-text blockquotes. Shared by the hover card
+ * and the reference list so quotes look the same everywhere.
+ *
+ * @example
+ * <RefQuotes quotes={["I'm gonna be King of the Pirates!"]} />
+ */
+export function RefQuotes(props: RefQuotesProps) {
+  const { quotes, className } = props;
+  if (quotes.length === 0) return null;
+  return (
+    <div className={cn("flex flex-col gap-1", className)}>
+      {quotes.map((q, i) => (
+        <blockquote
+          key={i}
+          className="border-l-2 border-border pl-2 text-sm italic text-foreground"
+        >
+          &ldquo;{q}&rdquo;
+        </blockquote>
+      ))}
+    </div>
   );
 }
 

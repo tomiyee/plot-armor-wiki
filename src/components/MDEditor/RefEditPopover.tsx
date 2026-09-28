@@ -8,7 +8,8 @@ import {
   useState,
   useCallback,
 } from "react";
-import { XIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "lucide-react";
+import { Textarea } from "@/components/ui/Textarea";
 import { WikiLinkContext } from "./WikiLinkContext";
 import { Select, type Option } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -19,8 +20,10 @@ type RefEditPopoverProps = {
   anchorEl: HTMLElement;
   /** Pre-fills the page/chapter selector, e.g. `"page:luffy"`. */
   initialToken?: string;
-  /** Called when the user confirms the ref target selection. */
-  onConfirm: (token: string) => void;
+  /** Pre-fills the optional quote fields. */
+  initialQuotes?: string[];
+  /** Called when the user confirms the ref target and quotes (empty quotes already dropped). */
+  onConfirm: (token: string, quotes: string[]) => void;
   /** Called when the user dismisses the popover (Escape, backdrop click, or × button). */
   onClose: () => void;
 };
@@ -28,8 +31,9 @@ type RefEditPopoverProps = {
 /**
  * Popover for inserting or editing a `{{ref|token}}` inline citation.
  *
- * Identical layout to `WikiLinkEditPopover` but without the alias input row,
- * since refs always display as `[N]` superscripts with no custom label.
+ * Like `WikiLinkEditPopover` but without the alias input row, since refs always
+ * display as `[N]` superscripts. Instead it offers optional exact quotes; each
+ * quote shows in this citation's hover card and in the page's reference list.
  * Rendered at a fixed position derived from `anchorEl.getBoundingClientRect()`.
  *
  * @example
@@ -41,12 +45,15 @@ type RefEditPopoverProps = {
  * />
  */
 export function RefEditPopover(props: RefEditPopoverProps) {
-  const { anchorEl, initialToken, onConfirm, onClose } = props;
+  const { anchorEl, initialToken, initialQuotes = [], onConfirm, onClose } =
+    props;
   const { wikiPages, wikiChapters, chapterType } = useContext(WikiLinkContext);
 
   const [selectedToken, setSelectedToken] = useState<string | undefined>(
     initialToken,
   );
+
+  const [quotes, setQuotes] = useState<string[]>(initialQuotes);
 
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -113,7 +120,10 @@ export function RefEditPopover(props: RefEditPopoverProps) {
 
   function handleConfirm() {
     if (!selectedToken) return;
-    onConfirm(selectedToken);
+    onConfirm(
+      selectedToken,
+      quotes.map((q) => q.trim()).filter(Boolean),
+    );
   }
 
   return (
@@ -150,6 +160,41 @@ export function RefEditPopover(props: RefEditPopoverProps) {
           placeholder="Select a page or chapter…"
           popupWidth="320px"
         />
+        {quotes.map((q, i) => (
+          <div key={i} className="flex items-start gap-1">
+            <Textarea
+              value={q}
+              rows={2}
+              placeholder="Exact quote…"
+              autoFocus={i === quotes.length - 1 && q === ""}
+              onChange={(e) =>
+                setQuotes((prev) =>
+                  prev.map((p, j) => (j === i ? e.target.value : p)),
+                )
+              }
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setQuotes((prev) => prev.filter((_, j) => j !== i))}
+              className="size-6 shrink-0"
+            >
+              <XIcon className="size-4" />
+              <span className="sr-only">Remove quote</span>
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setQuotes((prev) => [...prev, ""])}
+          className="self-start"
+        >
+          <PlusIcon className="size-4" />
+          Add quote (optional)
+        </Button>
         <Button
           type="button"
           onClick={handleConfirm}

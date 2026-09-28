@@ -13,12 +13,15 @@ import { ElementNode, $createTextNode } from "lexical";
 import type * as Mdast from "mdast";
 import { WikiLinkNode, $isWikiLinkNode } from "./WikiLinkNode";
 import { RefNode } from "./RefNode";
+import { REF_RE, parseRefBody } from "@/lib/refs";
 import { escapeWikiAlias, unescapeWikiAlias } from "@/lib/wiki-links";
 
 // Combined pattern matching wiki links and ref citations in one pass.
 // Groups: 1 = wikilink token, 2 = wikilink alias, 3 = ref token.
-const COMBINED_RE =
-  /\[?\[\[([^|\[\]]+)(?:\|((?:[^\]\\]|\\.)*))?\]\]|\{\{ref\|([^}]+)\}\}/g;
+const COMBINED_RE = new RegExp(
+  String.raw`\[?\[\[([^|\[\]]+)(?:\|((?:[^\]\\]|\\.)*))?\]\]|` + REF_RE.source,
+  "g",
+);
 
 // ── MDXEditor import visitor: text → WikiLinkNode / RefNode / RefboxNode ────
 
@@ -67,8 +70,9 @@ export const WikiLinkTextVisitor: MdastImportVisitor<Mdast.Text> = {
         const alias = match[2] ? unescapeWikiAlias(match[2].trim()) || undefined : undefined;
         (lexicalParent as ElementNode).append(new WikiLinkNode(match[1], alias));
       } else if (match[3] !== undefined) {
-        // Ref citation — group 3 = token
-        (lexicalParent as ElementNode).append(new RefNode(match[3].trim()));
+        // Ref citation — group 3 = body (token plus optional quote params)
+        const { token, quotes } = parseRefBody(match[3]);
+        (lexicalParent as ElementNode).append(new RefNode(token, quotes));
       }
 
       lastIndex = match.index + match[0].length;

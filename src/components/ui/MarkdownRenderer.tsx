@@ -46,7 +46,7 @@ type MarkdownRendererProps = {
    * When provided, overrides local `{{ref|token}}` ordinal computation with
    * globally consistent ordinals from `WikiPageRefsProvider`. Enables correct
    * cross-section reference numbering on wiki pages.
-   * Obtain this from `useWikiPageRefOrdinals` in read mode.
+   * Obtain this from `useWikiPageRefs` in read mode.
    */
   refOrdinalMap?: Map<string, number>;
 };
@@ -276,6 +276,11 @@ function makeSupComponent(
       return <sup id={id}>{children}</sup>;
     }
     const token = decodeURIComponent(rawToken);
+    const rawQuotes = (props as Record<string, unknown>)["data-ref-quotes"];
+    const quotes: string[] =
+      typeof rawQuotes === "string"
+        ? JSON.parse(decodeURIComponent(rawQuotes))
+        : [];
     const match = /^ref-cite-(\d+)$/.exec(id);
     if (!match) {
       return <sup id={id}>{children}</sup>;
@@ -285,6 +290,7 @@ function makeSupComponent(
         n={parseInt(match[1], 10)}
         id={id}
         token={token}
+        quotes={quotes}
         serialSlug={serialSlug}
         pageTitles={pageTitles}
         chapterType={chapterType}

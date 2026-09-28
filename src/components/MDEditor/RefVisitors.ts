@@ -9,6 +9,7 @@ import {
 } from "@mdxeditor/editor";
 import type * as Mdast from "mdast";
 import { RefNode, $isRefNode } from "./RefNode";
+import { formatRef } from "@/lib/refs";
 
 // ── MDXEditor export visitors ────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ import { RefNode, $isRefNode } from "./RefNode";
 interface MdastRefNode {
   type: "refCitation";
   token: string;
+  quotes: string[];
 }
 
 export const RefExportVisitor: LexicalExportVisitor<RefNode, Mdast.Text> = {
@@ -24,6 +26,7 @@ export const RefExportVisitor: LexicalExportVisitor<RefNode, Mdast.Text> = {
     actions.appendToParent(mdastParent, {
       type: "refCitation",
       token: lexicalNode.__token,
+      quotes: lexicalNode.__quotes,
     } as unknown as Mdast.Text);
   },
 };
@@ -31,12 +34,12 @@ export const RefExportVisitor: LexicalExportVisitor<RefNode, Mdast.Text> = {
 // ── toMarkdown handlers ──────────────────────────────────────────────────────
 
 /**
- * Passed to MDXEditorClient.toMarkdownOptions. Emits `{{ref|token}}` verbatim
+ * Passed to MDXEditorClient.toMarkdownOptions. Emits `{{ref|token|quote=…}}` verbatim
  * — mdast-util-to-markdown would otherwise escape `{`.
  */
 export const refToMarkdownExtension = {
   handlers: {
-    refCitation: (node: MdastRefNode) => `{{ref|${node.token}}}`,
+    refCitation: (node: MdastRefNode) => formatRef(node),
   },
 } as unknown as ToMarkdownExtension;
 
