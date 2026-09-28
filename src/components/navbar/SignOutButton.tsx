@@ -10,7 +10,7 @@ import { MenuItem } from "@/components/ui/Menu";
  */
 export function SignOutButton() {
   return (
-    <MenuItem onClick={() => signOut()}>
+    <MenuItem onClick={() => signOut({ callbackUrl: window.location.href })}>
       <LogOutIcon className="size-4" />
       Sign out
     </MenuItem>

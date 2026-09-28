@@ -7,6 +7,7 @@ import {
   requireAuthenticated,
   isSerialAdmin,
 } from "@/lib/auth-guard";
+import type { SuggestionStatus } from "@/types";
 
 // ── Internal helper ───────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ export async function submitSynopsisSuggestion(
  */
 export async function getMySynopsisSuggestion(chapterId: number): Promise<{
   id: number;
-  status: "pending" | "approved" | "rejected";
+  status: SuggestionStatus;
   reviewNote: string | null;
   createdAt: Date;
 } | null> {
@@ -103,7 +104,7 @@ export async function getMySynopsisSuggestion(chapterId: number): Promise<{
   if (!row) return null;
   return {
     id: row.id,
-    status: row.status as "pending" | "approved" | "rejected",
+    status: row.status,
     reviewNote: row.reviewNote,
     createdAt: row.createdAt,
   };

@@ -4,7 +4,8 @@ import { db } from "@/db/index";
 import { chapterSynopses } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { requireSerialAdminBySlug } from "@/lib/auth-guard";
-import { getSerialBySlug, getChapterBySerialAndIdx } from "@/db/queries";
+import { getSerialBySlug } from "@/data/serials/queries";
+import { getChapterBySerialAndIdx } from "@/data/chapters/queries";
 
 /**
  * Upserts the synopsis content for a chapter identified by serial slug + chapter idx.

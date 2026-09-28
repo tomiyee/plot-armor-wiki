@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { createPage } from "./actions";
 import { Text } from "@/components/ui/Text";
@@ -9,43 +10,30 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import { SimilarPagesWarning } from "./SimilarPagesWarning";
 
-interface Chapter {
-  id: number;
-  displayName: string;
-  idx: number;
-  volumeId: number;
-}
+import type { ChapterRow as Chapter, VolumeRow as Volume } from "@/types";
+import type { PageOption } from "./SimilarPagesWarning";
 
-interface Volume {
-  id: number;
-  displayName: string;
-}
+type SubmitButtonProps = {
+  /** When true, disables the button regardless of form-pending state. */
+  disabled: boolean;
+};
 
-interface PageOption {
-  id: number;
-  name: string;
-  introChapterId: number | null;
-}
-
-interface TemplateSection {
-  id: number;
-  name: string;
-  displayOrder: number;
-}
-
-interface TemplateInfoboxSection {
-  id: number;
-  label: string;
-  displayOrder: number;
-}
-
-interface Template {
-  id: number;
-  name: string;
-  hasInfobox: boolean;
-  sections: TemplateSection[];
-  infoboxSections: TemplateInfoboxSection[];
+/**
+ * Submit button that disables itself while its parent `<form>` is pending.
+ * Must be rendered inside a `<form>` to receive `useFormStatus` context.
+ * Prevents double-click races by locking out further clicks as soon as the
+ * first submission is in-flight.
+ */
+function SubmitButton(props: SubmitButtonProps) {
+  const { disabled } = props;
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" className="mt-2" disabled={disabled || pending}>
+      {pending ? "Creating…" : "Create page"}
+    </Button>
+  );
 }
 
 interface NewPageFormProps {
@@ -57,24 +45,20 @@ interface NewPageFormProps {
   volumeList: Volume[];
   /** All chapters for the intro chapter selector. */
   chapterList: Chapter[];
-  /** All existing pages in the serial; filtered to those visible at the selected intro chapter. */
+  /** All existing pages in the serial. Future pages carry `introChapterLabel`; visible pages do not. */
   existingPages: PageOption[];
   /** Pre-selected parent page id, e.g. when navigating here from a page's edit mode. */
   defaultParentPageId?: number;
-  /** Serial templates for pre-populating sections and infobox rows on the new page. */
-  templates: Template[];
+  /** The user's current reading chapter cutoff; pre-selects the intro chapter and disables future chapters. */
+  defaultIntroChapterId?: number;
+  /** Pre-filled page name, e.g. when navigating here from the search palette's "+ Page" option. */
+  defaultName?: string;
 }
 
 /**
  * Page creation form. Tracks the selected intro chapter and narrows the parent
  * page dropdown to pages that are visible at (i.e. introduced at or before) that
  * chapter, so a child page cannot reference a parent that doesn't exist yet.
- * When templates are defined for the serial, a "Use template" dropdown lets the
- * user pre-populate sections and infobox rows; a preview shows the resulting
- * structure before submitting.
- *
- * @example
- * <NewPageForm serialSlug="one-piece" chapterType="Chapter" templates={[]} ... />
  */
 export function NewPageForm(props: NewPageFormProps) {
   const {
@@ -84,32 +68,43 @@ export function NewPageForm(props: NewPageFormProps) {
     chapterList,
     existingPages,
     defaultParentPageId,
-    templates,
+    defaultIntroChapterId,
+    defaultName,
   } = props;
   const chapterTypeLabel = chapterType.toLowerCase();
 
-  // Build chapter id → idx lookup for filtering.
-  const chapterIdxById: Record<number, number> = {};
-  chapterList.forEach((c) => {
-    chapterIdxById[c.id] = c.idx;
-  });
+  const chapterIdxById = Object.fromEntries(
+    chapterList.map((c) => [c.id, c.idx]),
+  );
 
-  // Build grouped chapter options.
-  const chaptersByVolume: Record<number, Chapter[]> = {};
-  volumeList.forEach((v) => {
-    chaptersByVolume[v.id] = [];
-  });
-  chapterList.forEach((c) => {
-    chaptersByVolume[c.volumeId]?.push(c);
-  });
+  const chaptersByVolume = chapterList.reduce<Record<number, Chapter[]>>(
+    (acc, c) => {
+      (acc[c.volumeId] ??= []).push(c);
+      return acc;
+    },
+    {},
+  );
 
   const firstChapterId = chapterList[0]?.id ?? 0;
-  const [selectedIntroChapterId, setSelectedIntroChapterId] =
-    useState<number>(firstChapterId);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number>(0);
+  // Default to the user's reading cutoff so the intro chapter matches where they are.
+  // Falls back to chapter 1 when no cutoff is available (e.g. no progress cookie).
+  const [selectedIntroChapterId, setSelectedIntroChapterId] = useState<number>(
+    defaultIntroChapterId ?? firstChapterId,
+  );
   const [selectedParentPageId, setSelectedParentPageId] = useState<
     number | undefined
   >(undefined);
+  // Generated once per form mount. Sent as a hidden field so the server can
+  // detect retried submissions and redirect to the already-created page.
+  const [idempotencyKey] = useState<string>(() => crypto.randomUUID());
+  // Controlled name value so we can react to the user's input for similarity checks.
+  const [name, setName] = useState<string>(defaultName ?? "");
+
+  // The idx of the user's reading cutoff chapter, used to gate the chapter options.
+  const cutoffIdx =
+    defaultIntroChapterId !== undefined
+      ? (chapterIdxById[defaultIntroChapterId] ?? Infinity)
+      : Infinity;
 
   const chapterOptions = volumeList
     .filter((v) => (chaptersByVolume[v.id]?.length ?? 0) > 0)
@@ -119,6 +114,8 @@ export function NewPageForm(props: NewPageFormProps) {
       children: (chaptersByVolume[v.id] ?? []).map((c) => ({
         label: c.displayName,
         value: c.id,
+        // Disable chapters beyond the user's cutoff to prevent accidental spoilers.
+        disabled: c.idx > cutoffIdx,
       })),
     }));
 
@@ -153,30 +150,13 @@ export function NewPageForm(props: NewPageFormProps) {
       ? selectedParentPageId
       : (visibleParentDefault ?? parentPageOptions[0]?.value);
 
-  // Template options - 0 means "no template".
-  const templateOptions = [
-    { label: "None (default sections)", value: 0 },
-    ...templates.map((t) => ({ label: t.name, value: t.id })),
-  ];
-
-  const selectedTemplate =
-    templates.find((t) => t.id === selectedTemplateId) ?? null;
-  const sortedTemplateSections = selectedTemplate
-    ? [...selectedTemplate.sections].sort(
-        (a, b) => a.displayOrder - b.displayOrder,
-      )
-    : [];
-  const sortedTemplateInfoboxSections = selectedTemplate
-    ? [...selectedTemplate.infoboxSections].sort(
-        (a, b) => a.displayOrder - b.displayOrder,
-      )
-    : [];
-
   const createPageAction = createPage.bind(null, serialSlug);
   const hasChapters = chapterList.length > 0;
 
   return (
     <form action={createPageAction} className="flex flex-col gap-5">
+      {/* Idempotency key — generated once per form mount to deduplicate retries. */}
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       {/* Page name */}
       <Box col className="gap-1">
         <Label htmlFor="name">
@@ -188,6 +168,14 @@ export function NewPageForm(props: NewPageFormProps) {
           required
           placeholder="e.g. Monkey D. Luffy"
           autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        {/* Warn the admin when existing pages have similar names to prevent accidental duplicates. */}
+        <SimilarPagesWarning
+          name={name}
+          serialSlug={serialSlug}
+          existingPages={existingPages}
         />
       </Box>
 
@@ -243,81 +231,7 @@ export function NewPageForm(props: NewPageFormProps) {
         />
       </Box>
 
-      {/* Template selection (only shown when templates exist) */}
-      {templates.length > 0 && (
-        <Box col className="gap-1">
-          <Label htmlFor="templateId">Use template</Label>
-          {/* Hidden input so the form always submits a templateId value */}
-          <input
-            type="hidden"
-            name="templateId"
-            value={selectedTemplateId > 0 ? selectedTemplateId : ""}
-          />
-          <Select<number>
-            id="templateId"
-            options={templateOptions}
-            value={selectedTemplateId}
-            onChange={setSelectedTemplateId}
-          />
-
-          {/* Preview of what the template will create */}
-          {selectedTemplate && (
-            <div className="mt-2 rounded-lg border border-border bg-muted/40 p-3 flex flex-col gap-3 text-sm">
-              <Text variant="label">Template preview</Text>
-
-              {sortedTemplateSections.length > 0 ? (
-                <div>
-                  <Text muted className="text-xs mb-1">
-                    Sections
-                  </Text>
-                  <Box col className="gap-0.5">
-                    {sortedTemplateSections.map((s) => (
-                      <Text
-                        key={s.id}
-                        className="text-sm pl-2 border-l-2 border-border"
-                      >
-                        {s.name}
-                      </Text>
-                    ))}
-                  </Box>
-                </div>
-              ) : (
-                <Text muted className="text-xs">
-                  No sections defined - will use default Summary section.
-                </Text>
-              )}
-
-              {selectedTemplate.hasInfobox && (
-                <div>
-                  <Text muted className="text-xs mb-1">
-                    Infobox rows
-                  </Text>
-                  {sortedTemplateInfoboxSections.length > 0 ? (
-                    <Box col className="gap-0.5">
-                      {sortedTemplateInfoboxSections.map((s) => (
-                        <Text
-                          key={s.id}
-                          className="text-sm pl-2 border-l-2 border-border"
-                        >
-                          {s.label}
-                        </Text>
-                      ))}
-                    </Box>
-                  ) : (
-                    <Text muted className="text-xs">
-                      No infobox rows defined.
-                    </Text>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </Box>
-      )}
-
-      <Button type="submit" className="mt-2" disabled={!hasChapters}>
-        Create page
-      </Button>
+      <SubmitButton disabled={!hasChapters} />
     </form>
   );
 }

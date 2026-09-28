@@ -3,20 +3,12 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db/index";
-import {
-  pages,
-  pageTitles,
-  pageRelationships,
-  pageSections,
-  pageInfoboxSections,
-  templates,
-  templateSections,
-  templateInfoboxSections,
-} from "@/db/schema";
-import { and, asc, eq, like } from "drizzle-orm";
+import { pages, pageTitles, pageRelationships } from "@/db/schema";
+import { and, eq, like } from "drizzle-orm";
+import type { PostgresError } from "postgres";
 import { titleToSlug } from "@/lib/slug";
 import { requireSerialAdminBySlug } from "@/lib/auth-guard";
-import { getSerialBySlug } from "@/db/queries";
+import { getSerialBySlug } from "@/data/serials/queries";
 
 /**
  * Generates a slug unique within the serial. If `titleToSlug(name)` already
@@ -62,7 +54,7 @@ export async function createPage(serialSlug: string, formData: FormData) {
   const name = formData.get("name");
   const introChapterIdRaw = formData.get("introChapterId");
   const parentPageIdRaw = formData.get("parentPageId");
-  const templateIdRaw = formData.get("templateId");
+  const idempotencyKeyRaw = formData.get("idempotencyKey");
 
   if (!name || typeof name !== "string" || name.trim() === "") {
     throw new Error("Page name is required");
@@ -86,62 +78,37 @@ export async function createPage(serialSlug: string, formData: FormData) {
   if (isNaN(parentPageId) || parentPageId <= 0)
     throw new Error("Invalid parent page ID");
 
-  // Optional template - empty string or missing means no template.
-  const templateId =
-    templateIdRaw && typeof templateIdRaw === "string" && templateIdRaw !== ""
-      ? parseInt(templateIdRaw, 10)
+  // Idempotency key: a UUID generated on form mount to deduplicate retries.
+  // Present only when the form sends it; absent for programmatic / legacy calls.
+  const idempotencyKey =
+    idempotencyKeyRaw && typeof idempotencyKeyRaw === "string"
+      ? idempotencyKeyRaw
       : null;
 
   const serial = await getSerialBySlug(serialSlug);
   if (!serial) throw new Error("Serial not found");
 
-  // Pre-fetch the template definition outside the transaction (read-only).
-  let templateDef: {
-    hasInfobox: boolean;
-    sections: { name: string; displayOrder: number }[];
-    infoboxSections: { label: string; displayOrder: number }[];
-  } | null = null;
+  const trimmedName = name.trim();
 
-  if (templateId !== null && !isNaN(templateId)) {
-    const [tmpl] = await db
-      .select({ id: templates.id, hasInfobox: templates.hasInfobox })
-      .from(templates)
-      .where(
-        and(eq(templates.id, templateId), eq(templates.serialId, serial.id)),
-      );
+  // --- Idempotency check (Layer 2) ---
+  // If a page was already created with the same key (e.g. the previous response
+  // was lost and the user retried), redirect to that page instead of creating a
+  // duplicate.
+  if (idempotencyKey) {
+    const [existing] = await db
+      .select({ slug: pages.slug })
+      .from(pages)
+      .where(eq(pages.idempotencyKey, idempotencyKey));
 
-    if (tmpl) {
-      const [tmplSections, tmplInfoboxSections] = await Promise.all([
-        db
-          .select({
-            name: templateSections.name,
-            displayOrder: templateSections.displayOrder,
-          })
-          .from(templateSections)
-          .where(eq(templateSections.templateId, tmpl.id))
-          .orderBy(asc(templateSections.displayOrder)),
-        tmpl.hasInfobox
-          ? db
-              .select({
-                label: templateInfoboxSections.label,
-                displayOrder: templateInfoboxSections.displayOrder,
-              })
-              .from(templateInfoboxSections)
-              .where(eq(templateInfoboxSections.templateId, tmpl.id))
-              .orderBy(asc(templateInfoboxSections.displayOrder))
-          : Promise.resolve([]),
-      ]);
-      templateDef = {
-        hasInfobox: tmpl.hasInfobox,
-        sections: tmplSections,
-        infoboxSections: tmplInfoboxSections,
-      };
+    if (existing) {
+      revalidatePath(`/${serialSlug}`, "layout");
+      redirect(`/${serialSlug}/${encodeURIComponent(existing.slug)}`);
     }
   }
 
-  const trimmedName = name.trim();
   const slug = await generateUniqueSlug(serial.id, trimmedName);
 
+  try {
   await db.transaction(async (tx) => {
     // 1. Insert the page.
     const [newPage] = await tx
@@ -151,6 +118,7 @@ export async function createPage(serialSlug: string, formData: FormData) {
         name: trimmedName,
         slug,
         introChapterId,
+        idempotencyKey,
       })
       .returning({ id: pages.id });
 
@@ -172,34 +140,30 @@ export async function createPage(serialSlug: string, formData: FormData) {
       isActive: true,
     });
 
-    // 4. Seed sections from the template (or fall back to a default "Summary" section).
-    if (templateDef && templateDef.sections.length > 0) {
-      await tx.insert(pageSections).values(
-        templateDef.sections.map((s) => ({
-          pageId: newPage.id,
-          name: s.name,
-          displayOrder: s.displayOrder,
-        })),
-      );
-    } else {
-      await tx.insert(pageSections).values({
-        pageId: newPage.id,
-        name: "Summary",
-        displayOrder: 0,
-      });
-    }
-
-    // 5. Seed infobox rows from the template when hasInfobox is true.
-    if (templateDef?.hasInfobox && templateDef.infoboxSections.length > 0) {
-      await tx.insert(pageInfoboxSections).values(
-        templateDef.infoboxSections.map((s) => ({
-          pageId: newPage.id,
-          label: s.label,
-          displayOrder: s.displayOrder,
-        })),
-      );
-    }
+    // No content revision is seeded here - a page starts with an empty body
+    // and infobox; the first edit creates the initial page_content_revisions
+    // (and, if used, page_infobox_content_revisions) row.
   });
+  } catch (err) {
+    // Unique-constraint violation on idempotency_key means a concurrent request
+    // already committed the same page. Look it up and redirect rather than crash.
+    const pgErr = err as PostgresError;
+    if (
+      idempotencyKey &&
+      pgErr.code === "23505" &&
+      pgErr.constraint_name === "pages_idempotency_key_unique"
+    ) {
+      const [race] = await db
+        .select({ slug: pages.slug })
+        .from(pages)
+        .where(eq(pages.idempotencyKey, idempotencyKey));
+      if (race) {
+        revalidatePath(`/${serialSlug}`, "layout");
+        redirect(`/${serialSlug}/${encodeURIComponent(race.slug)}`);
+      }
+    }
+    throw err;
+  }
 
   revalidatePath(`/${serialSlug}`, "layout");
   redirect(`/${serialSlug}/${encodeURIComponent(slug)}`);

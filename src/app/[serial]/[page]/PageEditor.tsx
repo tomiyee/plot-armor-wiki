@@ -18,28 +18,22 @@ import {
   getAllSerialPagesAtChapter,
   updatePageIntroChapter,
 } from "./actions";
+import { DeletePageButton } from "./DeletePageButton";
 import { Select } from "@/components/ui/Select";
 import { useEditMode } from "@/contexts/EditModeContext";
 import { Banner } from "@/components/ui/Banner";
 import { WritingAsOfBanner } from "./WritingAsOfBanner";
-import { PageSectionManager, type PageSection } from "./PageSectionManager";
-import { type InfoboxSection } from "./PageInfoboxManager";
 import { PageReadView } from "./PageReadView";
 import { PageTitlesPanel } from "./PageTitlesPanel";
-import { SectionContentEditor } from "./SectionContentEditor";
+import { PageContentEditor } from "./PageContentEditor";
 import { PageInfoboxPanel } from "./PageInfoboxPanel";
 import {
   PageRelationshipsPanel,
   type ParentPageEntry,
 } from "./PageRelationshipsPanel";
 import { SuggestionReviewPanel } from "./SuggestionReviewPanel";
-import type {
-  SectionData,
-  FloaterRowData,
-  ChapterData,
-  PageTitleEntry,
-  ChapterGroupOption,
-} from "./types";
+import type { ChapterData, PageTitleEntry, ChapterGroupOption } from "./types";
+import type { SuggestionStatus } from "@/types";
 
 interface PageEditorProps {
   /** Slug of the serial this page belongs to. */
@@ -53,22 +47,16 @@ interface PageEditorProps {
    * Used to render the Titles panel in edit mode.
    */
   pageTitleEntries: PageTitleEntry[];
-  /**
-   * Wall-clock-versioned section structure for this page, used to power the
-   * Sections management panel in edit mode. Separate from `sections` (which
-   * carries chapter-versioned content).
-   */
-  pageSectionStructure: PageSection[];
-  /** Chapter-versioned section content at the reader's current cutoff. */
-  sections: SectionData[];
-  /**
-   * Wall-clock-versioned infobox row structure for this page, used to power
-   * the Infobox management panel in edit mode.
-   */
-  infoboxSectionStructure: InfoboxSection[];
-  /** null when the page has no infobox */
-  floaterImageUrl: string | null | undefined;
-  floaterRows: FloaterRowData[];
+  /** The page's merged body content at the reader's current cutoff. */
+  content: string;
+  /** Chapter idx the body content was last updated at, or null if never saved. */
+  contentLastUpdatedChapterIdx: number | null;
+  /** The page's merged infobox content at the reader's current cutoff. Empty string when absent. */
+  infoboxContent: string;
+  /** Chapter idx the infobox content was last updated at, or null if never saved. */
+  infoboxLastUpdatedChapterIdx: number | null;
+  /** null when the page has no infobox image set. */
+  floaterImageUrl: string | null;
   /** All chapters for this serial, used to populate the "Writing as of:" selector. */
   allChapters: ChapterData[];
   /** The id of the head chapter (highest idx). Used as the fallback default target for saves. */
@@ -131,10 +119,12 @@ interface PageEditorProps {
   isHomePage?: boolean;
   /**
    * Optional slot rendered at the top of the edit-mode panel, before the
-   * "Writing as of:" selector. Used by the serial home page to inject the
-   * TemplateManager above the content editors.
+   * "Writing as of:" selector. Used by the serial home page to inject
+   * admin-management UI above the content editors.
    */
   editModeHeader?: ReactNode;
+  /** Optional element rendered next to the "Sub-pages" heading in read mode, visible only on hover. */
+  subPagesAdornment?: ReactNode;
   /**
    * Whether the current user is an admin of this serial. When `false`, the
    * component always renders in read mode - edit controls and the edit FAB
@@ -164,18 +154,10 @@ interface PageEditorProps {
     targetChapterName: string;
     citation: string;
     createdAt: Date;
-    sectionChanges: {
-      sectionId: number;
-      sectionName: string;
-      currentContent: string;
-      proposedContent: string;
-    }[];
-    infoboxChanges: {
-      infoboxSectionId: number;
-      infoboxSectionLabel: string;
-      currentContent: string;
-      proposedContent: string;
-    }[];
+    currentContent: string;
+    proposedContent: string | null;
+    currentInfoboxContent: string;
+    proposedInfoboxContent: string | null;
   }[];
   /**
    * All suggestions the current non-admin user has submitted for this page,
@@ -183,19 +165,19 @@ interface PageEditorProps {
    */
   myPageSuggestions?: {
     id: number;
-    status: "pending" | "approved" | "rejected";
+    status: SuggestionStatus;
     reviewNote: string | null;
     createdAt: Date;
     targetChapterName: string;
-    sectionChanges: { sectionName: string; proposedContent: string }[];
-    infoboxChanges: { label: string; proposedContent: string }[];
+    proposedContent: string | null;
+    proposedInfoboxContent: string | null;
   }[];
 }
 
 /**
- * Renders the page body in read mode and switches to an inline edit mode where
- * each section gets an MDEditor alongside its current rendered value, and
- * infobox fields get plain text inputs.
+ * Renders the page body in read mode and switches to an inline edit mode with
+ * an MDEditor for the body content alongside its current rendered value, and
+ * a second MDEditor + image URL input for the infobox.
  * Edit mode is driven by the global `EditModeContext`; the `<EditModeFAB>`
  * triggers save and discard.
  * On save, calls the `savePageContent` Server Action which writes via SCD Type 2.
@@ -212,11 +194,11 @@ interface PageEditorProps {
  *   pageSlug="luffy"
  *   pageId={42}
  *   pageTitleEntries={[]}
- *   pageSectionStructure={[{ id: 1, name: 'Summary', displayOrder: 0 }]}
- *   sections={[{ id: 1, name: 'Summary', content: '...', lastUpdatedChapterIdx: 1 }]}
- *   infoboxSectionStructure={[{ id: 1, label: 'Age', displayOrder: 0 }]}
+ *   content="..."
+ *   contentLastUpdatedChapterIdx={1}
+ *   infoboxContent="**Age:** 19"
+ *   infoboxLastUpdatedChapterIdx={1}
  *   floaterImageUrl="https://..."
- *   floaterRows={[{ id: 2, label: 'Age', content: '19' }]}
  *   allChapters={[{ id: 5, displayName: '1', idx: 1, volumeName: 'Volume 1' }]}
  *   headChapterId={5}
  *   readingChapterId={3}
@@ -233,11 +215,11 @@ export function PageEditor(props: PageEditorProps) {
     pageSlug,
     pageId,
     pageTitleEntries,
-    pageSectionStructure,
-    sections,
-    infoboxSectionStructure,
+    content,
+    contentLastUpdatedChapterIdx,
+    infoboxContent,
+    infoboxLastUpdatedChapterIdx,
     floaterImageUrl,
-    floaterRows,
     allChapters,
     headChapterId,
     readingChapterId,
@@ -252,6 +234,7 @@ export function PageEditor(props: PageEditorProps) {
     allSerialPages,
     isHomePage = false,
     editModeHeader,
+    subPagesAdornment,
     isAdmin = false,
     isAuthenticated = false,
     pendingSuggestionCount: _pendingSuggestionCount = 0,
@@ -262,34 +245,29 @@ export function PageEditor(props: PageEditorProps) {
   const [isPending, startTransition] = useTransition();
   const { isEditing, registerHandlers, setIsDirty } = useEditMode();
 
-  const [draftSectionContent, setDraftSectionContent] = useState<
-    Record<number, string>
-  >(() => Object.fromEntries(sections.map((s) => [s.id, s.content])));
+  const [draftContent, setDraftContent] = useState(content);
+  const [currentContentLastUpdatedIdx, setCurrentContentLastUpdatedIdx] =
+    useState(contentLastUpdatedChapterIdx);
 
-  const [currentSectionLastUpdatedIdx, setCurrentSectionLastUpdatedIdx] =
-    useState<Record<number, number | null>>(() =>
-      Object.fromEntries(sections.map((s) => [s.id, s.lastUpdatedChapterIdx])),
-    );
+  // Content of the revision immediately before the selected chapter's revision.
+  // Populated on edit mode entry and after each chapter change. Used by the
+  // "Remove revision" button in PageContentEditor.
+  const [previousContent, setPreviousContent] = useState("");
+  const [previousContentRevisionChapterIdx, setPreviousContentRevisionChapterIdx] =
+    useState<number | null>(null);
+  const [nextContentRevisionChapterIdx, setNextContentRevisionChapterIdx] =
+    useState<number | null>(null);
 
-  // Content of the revision immediately before the selected chapter's revision,
-  // per section. Populated on edit mode entry and after each chapter change.
-  // Used by the "Remove revision" button in SectionContentEditor.
-  const [previousSectionContent, setPreviousSectionContent] = useState<
-    Record<number, string>
-  >({});
-
-  // Chapter idx of the previous revision per section. Null when no prior revision
-  // exists. Used by the remove-revision timeline to show the previous revision dot.
+  const [draftInfoboxContent, setDraftInfoboxContent] = useState(infoboxContent);
+  const [currentInfoboxLastUpdatedIdx, setCurrentInfoboxLastUpdatedIdx] =
+    useState(infoboxLastUpdatedChapterIdx);
+  const [previousInfoboxContent, setPreviousInfoboxContent] = useState("");
   const [
-    previousSectionRevisionChapterIdx,
-    setPreviousSectionRevisionChapterIdx,
-  ] = useState<Record<number, number | null>>({});
-
-  // Chapter idx of the next revision strictly after the selected chapter, per section.
-  // null when no later revision exists. Used by the remove-revision dialog to show
-  // the exact range of chapters that would revert to the previous content.
-  const [nextSectionRevisionChapterIdx, setNextSectionRevisionChapterIdx] =
-    useState<Record<number, number | null>>({});
+    previousInfoboxRevisionChapterIdx,
+    setPreviousInfoboxRevisionChapterIdx,
+  ] = useState<number | null>(null);
+  const [nextInfoboxRevisionChapterIdx, setNextInfoboxRevisionChapterIdx] =
+    useState<number | null>(null);
 
   const [currentParentPages, setCurrentParentPages] =
     useState<ParentPageEntry[]>(parentPages);
@@ -301,9 +279,6 @@ export function PageEditor(props: PageEditorProps) {
   const [draftFloaterImageUrl, setDraftFloaterImageUrl] = useState<string>(
     floaterImageUrl ?? "",
   );
-  const [draftFloaterRowContent, setDraftFloaterRowContent] = useState<
-    Record<number, string>
-  >(() => Object.fromEntries(floaterRows.map((r) => [r.id, r.content])));
 
   // Defaults to the reader's current chapter so writing stays in sync with what
   // the reader just read. Falls back to headChapterId when no reading chapter is set.
@@ -316,8 +291,6 @@ export function PageEditor(props: PageEditorProps) {
   const [draftIntroChapterId, setDraftIntroChapterId] = useState<number | null>(
     introChapterId,
   );
-
-  const hasInfobox = infoboxSectionStructure.length > 0;
 
   // Filter pending suggestions to those whose target chapter is within the admin's
   // reading cutoff. Suggestions targeting chapters beyond the cutoff could reveal
@@ -337,10 +310,9 @@ export function PageEditor(props: PageEditorProps) {
 
   // Compute dirty state: true when any draft differs from the server-provided value.
   const isDirty =
-    sections.some((s) => draftSectionContent[s.id] !== s.content) ||
-    (hasInfobox && draftFloaterImageUrl !== (floaterImageUrl ?? "")) ||
-    (hasInfobox &&
-      floaterRows.some((r) => draftFloaterRowContent[r.id] !== r.content));
+    draftContent !== content ||
+    draftInfoboxContent !== infoboxContent ||
+    draftFloaterImageUrl !== (floaterImageUrl ?? "");
 
   // Propagate dirty state into EditModeContext so the navigation guard can react.
   useEffect(() => {
@@ -349,25 +321,32 @@ export function PageEditor(props: PageEditorProps) {
     return () => setIsDirty(false);
   }, [isDirty, setIsDirty]);
 
+  // Re-sync the "Writing as of:" chapter to the reader's cutoff whenever it changes
+  // outside of an active edit session. Without this, the useState init only runs on
+  // first mount — subsequent cutoff changes via ChapterSelector (which triggers a
+  // router.refresh()) would leave selectedChapterId stale until the user discards.
+  useEffect(() => {
+    if (!isEditing) {
+      setSelectedChapterId(readingChapterId ?? headChapterId);
+    }
+  }, [readingChapterId, headChapterId, isEditing]);
+
   const handleDiscard = useCallback(() => {
-    setDraftSectionContent(
-      Object.fromEntries(sections.map((s) => [s.id, s.content])),
-    );
-    setCurrentSectionLastUpdatedIdx(
-      Object.fromEntries(sections.map((s) => [s.id, s.lastUpdatedChapterIdx])),
-    );
+    setDraftContent(content);
+    setCurrentContentLastUpdatedIdx(contentLastUpdatedChapterIdx);
+    setDraftInfoboxContent(infoboxContent);
+    setCurrentInfoboxLastUpdatedIdx(infoboxLastUpdatedChapterIdx);
     setDraftFloaterImageUrl(floaterImageUrl ?? "");
-    setDraftFloaterRowContent(
-      Object.fromEntries(floaterRows.map((r) => [r.id, r.content])),
-    );
     setCurrentParentPages(parentPages);
     setCurrentAllSerialPages(allSerialPages);
     setSelectedChapterId(readingChapterId ?? headChapterId);
     setDraftIntroChapterId(introChapterId);
   }, [
-    sections,
+    content,
+    contentLastUpdatedChapterIdx,
+    infoboxContent,
+    infoboxLastUpdatedChapterIdx,
     floaterImageUrl,
-    floaterRows,
     parentPages,
     allSerialPages,
     readingChapterId,
@@ -380,10 +359,9 @@ export function PageEditor(props: PageEditorProps) {
       await savePageContent(
         serialSlug,
         pageSlug,
-        "",
-        draftSectionContent,
-        hasInfobox ? draftFloaterImageUrl.trim() || null : null,
-        hasInfobox ? draftFloaterRowContent : {},
+        draftContent,
+        draftInfoboxContent,
+        draftFloaterImageUrl.trim() || null,
         selectedChapterId ?? undefined,
       );
       router.refresh();
@@ -391,10 +369,9 @@ export function PageEditor(props: PageEditorProps) {
   }, [
     serialSlug,
     pageSlug,
-    draftSectionContent,
-    hasInfobox,
+    draftContent,
+    draftInfoboxContent,
     draftFloaterImageUrl,
-    draftFloaterRowContent,
     selectedChapterId,
     router,
   ]);
@@ -421,15 +398,33 @@ export function PageEditor(props: PageEditorProps) {
     });
   }
 
-  // When entering edit mode, prime previousSectionContent and nextSectionRevisionChapterIdx
-  // for the initial chapter so the "Remove revision" button is available without needing
-  // a chapter change. Subsequent chapter changes are handled by handleChapterChange.
+  /** Applies previous/next revision metadata for both the body and infobox fields. */
+  function applyRevisionMetadata(data: {
+    previousContent: string;
+    previousRevisionChapterIdx: number | null;
+    nextRevisionChapterIdx: number | null;
+    previousInfoboxContent: string;
+    previousInfoboxRevisionChapterIdx: number | null;
+    nextInfoboxRevisionChapterIdx: number | null;
+  }) {
+    setPreviousContent(data.previousContent);
+    setPreviousContentRevisionChapterIdx(data.previousRevisionChapterIdx);
+    setNextContentRevisionChapterIdx(data.nextRevisionChapterIdx);
+    setPreviousInfoboxContent(data.previousInfoboxContent);
+    setPreviousInfoboxRevisionChapterIdx(data.previousInfoboxRevisionChapterIdx);
+    setNextInfoboxRevisionChapterIdx(data.nextInfoboxRevisionChapterIdx);
+  }
+
+  // When entering edit mode, prime previous/next revision metadata for the
+  // initial chapter so the "Remove revision" buttons are available without
+  // needing a chapter change. Subsequent chapter changes are handled by
+  // handleChapterChange.
   useEffect(() => {
     if (!isEditing || selectedChapterId === null) return;
     let cancelled = false;
     getPageContentAtChapter(serialSlug, pageSlug, selectedChapterId).then(
       (data) => {
-        if (!cancelled) applyRevisionMetadata(data.sections);
+        if (!cancelled) applyRevisionMetadata(data);
       },
     );
     return () => {
@@ -440,35 +435,16 @@ export function PageEditor(props: PageEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing]);
 
-  function applyRevisionMetadata(sections: {
-    id: number;
-    previousContent: string;
-    previousRevisionChapterIdx: number | null;
-    nextRevisionChapterIdx: number | null;
-  }[]) {
-    setPreviousSectionContent(
-      Object.fromEntries(sections.map((s) => [s.id, s.previousContent])),
-    );
-    setPreviousSectionRevisionChapterIdx(
-      Object.fromEntries(
-        sections.map((s) => [s.id, s.previousRevisionChapterIdx]),
-      ),
-    );
-    setNextSectionRevisionChapterIdx(
-      Object.fromEntries(
-        sections.map((s) => [s.id, s.nextRevisionChapterIdx]),
-      ),
-    );
-  }
-
   /**
    * When the editor picks a different target chapter, fetch the content that
    * readers at that chapter currently see and replace both the reference view
    * and the draft with it so the editor can review and then overwrite it.
+   * `overrides` lets `handleRemoveRevisionConfirmed` inject the
+   * already-known previous content for a non-direct revision switch.
    */
   function handleChapterChange(
     chapterId: number,
-    draftOverrides: Record<number, string> = {},
+    overrides?: { content?: string; infoboxContent?: string },
   ) {
     setSelectedChapterId(chapterId);
     startTransition(async () => {
@@ -477,40 +453,37 @@ export function PageEditor(props: PageEditorProps) {
         getParentPagesAtChapter(serialSlug, pageSlug, chapterId),
         getAllSerialPagesAtChapter(serialSlug, pageSlug, chapterId),
       ]);
-      const newContent = Object.fromEntries(
-        data.sections.map((s) => [s.id, s.content]),
-      );
-      setDraftSectionContent({ ...newContent, ...draftOverrides });
-      setCurrentSectionLastUpdatedIdx(
-        Object.fromEntries(
-          data.sections.map((s) => [s.id, s.lastUpdatedChapterIdx]),
-        ),
-      );
-      applyRevisionMetadata(data.sections);
-      if (hasInfobox) {
-        setDraftFloaterImageUrl(data.floaterImageUrl ?? "");
-        setDraftFloaterRowContent(
-          Object.fromEntries(data.floaterRows.map((r) => [r.id, r.content])),
-        );
-      }
+      setDraftContent(overrides?.content ?? data.content);
+      setCurrentContentLastUpdatedIdx(data.lastUpdatedChapterIdx);
+      setDraftInfoboxContent(overrides?.infoboxContent ?? data.infoboxContent);
+      setCurrentInfoboxLastUpdatedIdx(data.infoboxLastUpdatedChapterIdx);
+      setDraftFloaterImageUrl(data.floaterImageUrl ?? "");
+      applyRevisionMetadata(data);
       setCurrentParentPages(parents);
       setCurrentAllSerialPages(serialPages);
     });
   }
 
-  function handleRemoveRevisionConfirmed(sectionId: number) {
-    const prevContent = previousSectionContent[sectionId] ?? "";
-    const lastUpdatedIdx = currentSectionLastUpdatedIdx[sectionId];
+  function handleRemoveRevisionConfirmed(kind: "content" | "infobox") {
+    const isBody = kind === "content";
+    const lastUpdatedIdx = isBody
+      ? currentContentLastUpdatedIdx
+      : currentInfoboxLastUpdatedIdx;
+    const prevContent = isBody ? previousContent : previousInfoboxContent;
+    const prevRevisionChapterIdx = isBody
+      ? previousContentRevisionChapterIdx
+      : previousInfoboxRevisionChapterIdx;
     const isDirectRevision =
       lastUpdatedIdx !== null && lastUpdatedIdx === selectedChapterIdx;
 
     if (isDirectRevision) {
-      setDraftSectionContent((prev) => ({ ...prev, [sectionId]: prevContent }));
-      // Optimistically update the last-updated tag to the prior revision's chapter.
-      setCurrentSectionLastUpdatedIdx((prev) => ({
-        ...prev,
-        [sectionId]: previousSectionRevisionChapterIdx[sectionId] ?? null,
-      }));
+      if (isBody) {
+        setDraftContent(prevContent);
+        setCurrentContentLastUpdatedIdx(prevRevisionChapterIdx);
+      } else {
+        setDraftInfoboxContent(prevContent);
+        setCurrentInfoboxLastUpdatedIdx(prevRevisionChapterIdx);
+      }
       // Re-fetch previous/next revision metadata for the selected chapter so that
       // a second "Remove revision" click shows the correct diff rather than stale
       // data from before the first removal.
@@ -521,7 +494,7 @@ export function PageEditor(props: PageEditorProps) {
             pageSlug,
             selectedChapterId,
           );
-          applyRevisionMetadata(data.sections);
+          applyRevisionMetadata(data);
         });
       }
     } else if (lastUpdatedIdx !== null) {
@@ -531,7 +504,10 @@ export function PageEditor(props: PageEditorProps) {
         (c) => c.idx === lastUpdatedIdx,
       )?.id;
       if (revisionChapterId !== undefined) {
-        handleChapterChange(revisionChapterId, { [sectionId]: prevContent });
+        handleChapterChange(
+          revisionChapterId,
+          isBody ? { content: prevContent } : { infoboxContent: prevContent },
+        );
       }
     }
   }
@@ -563,10 +539,11 @@ export function PageEditor(props: PageEditorProps) {
         )}
         <PageReadView
           serialSlug={serialSlug}
-          sections={sections}
-          hasInfobox={hasInfobox}
+          content={content}
+          contentLastUpdatedChapterIdx={contentLastUpdatedChapterIdx}
+          infoboxContent={infoboxContent}
+          infoboxLastUpdatedChapterIdx={infoboxLastUpdatedChapterIdx}
           floaterImageUrl={floaterImageUrl}
-          floaterRows={floaterRows}
           childPages={childPages}
           pageId={pageId}
           pageTitles={pageTitles}
@@ -584,6 +561,7 @@ export function PageEditor(props: PageEditorProps) {
                 }
               : undefined
           }
+          subPagesAdornment={subPagesAdornment}
         />
       </Box>
     );
@@ -706,49 +684,49 @@ export function PageEditor(props: PageEditorProps) {
         />
       )}
 
-      <PageSectionManager pageId={pageId} sections={pageSectionStructure} />
-
-      {sections.map((section, i) => (
-        <SectionContentEditor
-          key={section.id}
-          section={section}
-          isFirst={i === 0}
-          draftContent={draftSectionContent[section.id] ?? ""}
-          lastUpdatedIdx={currentSectionLastUpdatedIdx[section.id] ?? null}
-          selectedChapterIdx={selectedChapterIdx}
-          onChange={(val) =>
-            setDraftSectionContent((prev) => ({ ...prev, [section.id]: val }))
-          }
-          serialSlug={serialSlug}
-          wikiPages={wikiPages}
-          wikiChapters={wikiChapters}
-          chapterType={chapterType}
-          previousRevisionContent={previousSectionContent[section.id] ?? ""}
-          previousRevisionChapterIdx={
-            previousSectionRevisionChapterIdx[section.id] ?? null
-          }
-          onConfirmRemove={() => handleRemoveRevisionConfirmed(section.id)}
-          allChapters={allChapters}
-          nextRevisionChapterIdx={
-            nextSectionRevisionChapterIdx[section.id] ?? null
-          }
-        />
-      ))}
+      <PageContentEditor
+        label="Body"
+        isBody
+        savedContent={content}
+        draftContent={draftContent}
+        lastUpdatedIdx={currentContentLastUpdatedIdx}
+        selectedChapterIdx={selectedChapterIdx}
+        onChange={setDraftContent}
+        serialSlug={serialSlug}
+        wikiPages={wikiPages}
+        wikiChapters={wikiChapters}
+        chapterType={chapterType}
+        previousRevisionContent={previousContent}
+        previousRevisionChapterIdx={previousContentRevisionChapterIdx}
+        onConfirmRemove={() => handleRemoveRevisionConfirmed("content")}
+        allChapters={allChapters}
+        nextRevisionChapterIdx={nextContentRevisionChapterIdx}
+      />
 
       <PageInfoboxPanel
-        pageId={pageId}
-        infoboxSectionStructure={infoboxSectionStructure}
-        floaterRows={floaterRows}
+        savedContent={infoboxContent}
+        draftContent={draftInfoboxContent}
+        setDraftContent={setDraftInfoboxContent}
+        lastUpdatedIdx={currentInfoboxLastUpdatedIdx}
+        selectedChapterIdx={selectedChapterIdx}
         draftFloaterImageUrl={draftFloaterImageUrl}
         setDraftFloaterImageUrl={setDraftFloaterImageUrl}
-        draftFloaterRowContent={draftFloaterRowContent}
-        setDraftFloaterRowContent={setDraftFloaterRowContent}
-        isPending={isPending}
+        previousRevisionContent={previousInfoboxContent}
+        previousRevisionChapterIdx={previousInfoboxRevisionChapterIdx}
+        onConfirmRemove={() => handleRemoveRevisionConfirmed("infobox")}
+        allChapters={allChapters}
+        nextRevisionChapterIdx={nextInfoboxRevisionChapterIdx}
         serialSlug={serialSlug}
         wikiPages={wikiPages}
         wikiChapters={wikiChapters}
         chapterType={chapterType}
       />
+
+      {!isHomePage && (
+        <Box className="border-t pt-4">
+          <DeletePageButton serialSlug={serialSlug} pageSlug={pageSlug} wikiPages={wikiPages} />
+        </Box>
+      )}
 
     </Box>
     </Banner>

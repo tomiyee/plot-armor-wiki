@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { usePersistedStore } from "@/hooks/usePersistedStore";
-import { ChapterData, Volume } from "@/types";
+import { ChapterRow, Volume } from "@/types";
 
 type SerialTOCProps = {
   /** The serial's database ID, used as the localStorage key namespace. */
@@ -21,7 +21,7 @@ type SerialTOCProps = {
   /** Ordered list of volumes to render as accordion sections. */
   volumes: Volume[];
   /** Map from volume ID to its chapters, used to populate each accordion section. */
-  chaptersByVolume: Partial<Record<number, ChapterData[]>>;
+  chaptersByVolume: Partial<Record<number, ChapterRow[]>>;
   /** Display label for an individual chapter (e.g. "Chapter", "Episode"). */
   chapterType: string;
 };
@@ -88,7 +88,7 @@ export function SerialTOC(props: SerialTOCProps) {
     });
   }
 
-  function getChapters(volumeId: number): ChapterData[] {
+  function getChapters(volumeId: number): ChapterRow[] {
     const chaps = chaptersByVolume[volumeId] ?? [];
     if (!normalizedQuery) return chaps;
     return chaps.filter((c) =>

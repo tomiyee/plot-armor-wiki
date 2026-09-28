@@ -1,14 +1,8 @@
 "use server";
 
-import { db } from "@/db/index";
-import { pages, chapters } from "@/db/schema";
-import { and, asc, eq, isNull, lte, or } from "drizzle-orm";
-import { cookies } from "next/headers";
-import {
-  resolvePageTitlesAtIdx,
-  getSerialBySlug,
-  getChapterIdxById,
-} from "@/db/queries";
+import { getSerialBySlug } from "@/data/serials/queries";
+import { getChapterCutoff } from "@/data/chapters/queries";
+import { searchPagesByNameAtIdx, resolvePageTitlesAtIdx } from "@/data/pages/queries";
 
 export interface PageSearchResult {
   /** DB primary key. */
@@ -20,54 +14,32 @@ export interface PageSearchResult {
 }
 
 /**
- * Returns all non-home wiki pages in the given serial that are visible at the
- * user's current chapter cutoff (read from the progress cookie set by
- * ChapterSelector). Pages whose intro chapter is beyond the cutoff are
- * excluded - the same spoiler rule used by page rendering.
+ * Returns up to 20 wiki pages in the given serial whose canonical name matches
+ * `query` (case-insensitive substring) at the user's current chapter cutoff.
  *
- * Cutoff falls back to idx=0 when no progress cookie exists, so only pages
- * with no intro chapter (impossible in practice) would appear on first visit.
+ * Returns an empty array when `query` is blank so the caller can skip the
+ * round-trip entirely on an empty search box.
+ *
+ * Pages whose intro chapter is beyond the cutoff are excluded — same spoiler
+ * rule used by page rendering.
  *
  * @example
- * const results = await getVisiblePages("my-serial");
+ * const results = await searchPages("my-serial", "luf");
  */
-export async function getVisiblePages(
+export async function searchPages(
   serialSlug: string,
+  query: string,
 ): Promise<PageSearchResult[]> {
-  const serial = await getSerialBySlug(serialSlug);
+  if (!query.trim()) return [];
 
+  const serial = await getSerialBySlug(serialSlug);
   if (!serial) return [];
 
-  // Read the chapter cutoff from the progress cookie written by ChapterSelector.
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(`plotarmor_chapter_${serial.id}`)?.value;
-  let cutoffIdx = 0;
-  if (raw) {
-    const chapterId = parseInt(raw, 10);
-    if (!isNaN(chapterId)) {
-      const idx = await getChapterIdxById(chapterId);
-      if (idx !== null) cutoffIdx = idx;
-    }
-  }
+  const { cutoffIdx } = await getChapterCutoff(serial.id);
 
-  // Step 1: pages visible at the cutoff (same filter as page rendering).
-  const rawPages = await db
-    .select({ id: pages.id, name: pages.name, slug: pages.slug })
-    .from(pages)
-    .leftJoin(chapters, eq(pages.introChapterId, chapters.id))
-    .where(
-      and(
-        eq(pages.serialId, serial.id),
-        // Exclude the home page - users navigate to it via the serial breadcrumb.
-        eq(pages.isHomePage, false),
-        or(isNull(pages.introChapterId), lte(chapters.idx, cutoffIdx)),
-      ),
-    )
-    .orderBy(asc(pages.name));
-
+  const rawPages = await searchPagesByNameAtIdx(serial.id, cutoffIdx, query);
   if (rawPages.length === 0) return [];
 
-  // Step 2: resolve each page's chapter-versioned title at the cutoff.
   const pageIds = rawPages.map((p) => p.id);
   const titleByPageId = await resolvePageTitlesAtIdx(pageIds, cutoffIdx);
 

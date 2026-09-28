@@ -60,19 +60,7 @@ import {
   VolumeType,
 } from "@/lib/serial-types";
 import { Tooltip } from "@/components/ui/Tooltip";
-
-interface Chapter {
-  id: number;
-  displayName: string;
-  idx: number;
-  volumeId: number;
-}
-
-interface Volume {
-  id: number;
-  displayName: string;
-  idx: number;
-}
+import type { ChapterRow as Chapter, Volume } from "@/types";
 
 interface PendingDelete {
   type: "volume" | "chapter";
@@ -767,7 +755,7 @@ function TocDiffPreviewDialog(props: TocDiffPreviewDialogProps) {
       <DialogHeader>
         <DialogTitle>Preview TOC changes</DialogTitle>
       </DialogHeader>
-      <DialogBody className="max-h-[60vh]">
+      <DialogBody className="max-h-60vh">
         {!hasChanges ? (
           <Text muted>
             No changes detected - the uploaded TOC matches the current one.

@@ -1,36 +1,39 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Text } from "@/components/ui/Text";
 import { Box } from "@/components/ui/Box";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Button } from "@/components/ui/Button";
 import { InfoIcon } from "@/components/ui/InfoIcon";
-import { WikiLinkMDEditor } from "@/components/MDEditor/index";
-import { addInfoboxSection } from "./actions";
-import { PageInfoboxManager, type InfoboxSection } from "./PageInfoboxManager";
-import type { FloaterRowData } from "./types";
+import { PageContentEditor } from "./PageContentEditor";
+import type { ChapterData } from "./types";
 
-interface PageInfoboxPanelProps {
-  /** DB id of the page this infobox belongs to. */
-  pageId: number;
-  /** Wall-clock-versioned infobox row structure for the management panel. */
-  infoboxSectionStructure: InfoboxSection[];
-  /** Infobox rows at the reader's current chapter cutoff, used to seed draft state. */
-  floaterRows: FloaterRowData[];
+type PageInfoboxPanelProps = {
+  /** The saved infobox content at the reader's current chapter cutoff, used as the diff baseline. */
+  savedContent: string;
+  /** Controlled draft value for the infobox markdown content, owned by `PageEditor`. */
+  draftContent: string;
+  /** Setter for `draftContent`, owned by `PageEditor`. */
+  setDraftContent: Dispatch<SetStateAction<string>>;
+  /** Chapter idx of the last saved infobox revision, or null if never saved. */
+  lastUpdatedIdx: number | null;
+  /** The currently selected chapter index for the "writing as of" context. */
+  selectedChapterIdx: number | null;
   /** Controlled draft value for the floater image URL, owned by `PageEditor`. */
   draftFloaterImageUrl: string;
   /** Setter for `draftFloaterImageUrl`, owned by `PageEditor`. */
   setDraftFloaterImageUrl: Dispatch<SetStateAction<string>>;
-  /** Controlled draft content keyed by infobox section id, owned by `PageEditor`. */
-  draftFloaterRowContent: Record<number, string>;
-  /** Setter for `draftFloaterRowContent`, owned by `PageEditor`. */
-  setDraftFloaterRowContent: Dispatch<SetStateAction<Record<number, string>>>;
-  /** Whether the parent editor is pending a transition (disables inputs). */
-  isPending: boolean;
+  /** Content from the revision immediately before the selected chapter's revision. */
+  previousRevisionContent: string;
+  /** Chapter idx of the revision immediately before the selected chapter's revision, or null when no prior revision exists. */
+  previousRevisionChapterIdx: number | null;
+  /** Called when the user confirms removing the infobox revision in the dialog. */
+  onConfirmRemove: () => void;
+  /** All chapters in the serial, used by the remove-revision dialog's impact timeline. */
+  allChapters: ChapterData[];
+  /** Chapter idx of the next infobox revision strictly after the selected chapter, or null when this is the most recent one. */
+  nextRevisionChapterIdx: number | null;
   /** Slug of the serial — forwarded to the MDEditor for wiki-link autocomplete. */
   serialSlug: string;
   /** All wiki pages for `[[Page]]` autocomplete in the MDEditor. */
@@ -39,117 +42,87 @@ interface PageInfoboxPanelProps {
   wikiChapters?: { name: string; idx: number }[];
   /** The serial's chapter type label (e.g. `"Chapter"`). */
   chapterType?: string;
-}
+};
 
 /**
- * Edit-mode panel for the page infobox: enables/disables it, manages row structure,
- * and edits the image URL and per-row content draft.
- * Draft state is owned by `PageEditor` so it can be included in the save payload.
+ * Edit-mode panel for the page infobox: a single chapter-versioned content
+ * field plus an image URL. Whether the infobox renders at all in read mode is
+ * derived from whether either field is non-empty at the reader's cutoff -
+ * there is no longer a separate "enabled" flag or row structure to manage.
  *
  * @example
  * <PageInfoboxPanel
- *   pageId={42}
- *   infoboxSectionStructure={[]}
- *   floaterRows={[]}
+ *   savedContent=""
+ *   draftContent=""
+ *   setDraftContent={setContent}
+ *   lastUpdatedIdx={null}
+ *   selectedChapterIdx={3}
  *   draftFloaterImageUrl=""
  *   setDraftFloaterImageUrl={setUrl}
- *   draftFloaterRowContent={{}}
- *   setDraftFloaterRowContent={setContent}
- *   isPending={false}
+ *   previousRevisionContent=""
+ *   previousRevisionChapterIdx={null}
+ *   onConfirmRemove={() => {}}
+ *   allChapters={allChapters}
+ *   nextRevisionChapterIdx={null}
  *   serialSlug="one-piece"
  *   wikiPages={[{ name: "Luffy", slug: "luffy" }]}
  * />
  */
 export function PageInfoboxPanel(props: PageInfoboxPanelProps) {
   const {
-    pageId,
-    infoboxSectionStructure,
-    floaterRows,
+    savedContent,
+    draftContent,
+    setDraftContent,
+    lastUpdatedIdx,
+    selectedChapterIdx,
     draftFloaterImageUrl,
     setDraftFloaterImageUrl,
-    draftFloaterRowContent,
-    setDraftFloaterRowContent,
-    isPending: externalIsPending,
+    previousRevisionContent,
+    previousRevisionChapterIdx,
+    onConfirmRemove,
+    allChapters,
+    nextRevisionChapterIdx,
     serialSlug,
     wikiPages,
     wikiChapters,
     chapterType,
   } = props;
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-
-  const disabled = isPending || externalIsPending;
 
   return (
     <Box col className="gap-4 rounded-lg border border-infobox-border bg-infobox-bg p-4">
       <Box className="items-center gap-2">
         <Text variant="h3">Infobox</Text>
-        <InfoIcon contents="The infobox floats on the right side of the page showing an image and key facts about this subject. It's chapter-versioned: each row's content is tied to the 'Writing as of:' chapter you select above." />
+        <InfoIcon contents="The infobox floats on the right side of the page showing an image and key facts about this subject. It's chapter-versioned, and only appears to readers when it has content or an image at their current chapter." />
       </Box>
 
-      {infoboxSectionStructure.length === 0 ? (
-        <Box col className="gap-2">
-          <Text muted className="text-sm">
-            This page has no infobox. Add a row below to enable the infobox.
-          </Text>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="self-start"
-            disabled={disabled}
-            onClick={() => {
-              startTransition(async () => {
-                const fd = new FormData();
-                fd.set("pageId", String(pageId));
-                fd.set("label", "Overview");
-                await addInfoboxSection(fd);
-                router.refresh();
-              });
-            }}
-          >
-            Enable infobox
-          </Button>
-        </Box>
-      ) : (
-        <>
-          <PageInfoboxManager
-            pageId={pageId}
-            sections={infoboxSectionStructure}
-          />
+      <Box col className="gap-1.5">
+        <Label htmlFor="floater-image-url">Image URL</Label>
+        <Input
+          id="floater-image-url"
+          value={draftFloaterImageUrl}
+          onChange={(e) => setDraftFloaterImageUrl(e.target.value)}
+          placeholder="https://…"
+        />
+      </Box>
 
-          <Box col className="gap-1.5">
-            <Label htmlFor="floater-image-url">Image URL</Label>
-            <Input
-              id="floater-image-url"
-              value={draftFloaterImageUrl}
-              onChange={(e) => setDraftFloaterImageUrl(e.target.value)}
-              placeholder="https://…"
-              disabled={disabled}
-            />
-          </Box>
-
-          {floaterRows.map((row) => (
-            <Box key={row.id} col className="gap-1.5">
-              <Label>{row.label}</Label>
-              <WikiLinkMDEditor
-                value={draftFloaterRowContent[row.id] ?? ""}
-                onChange={(val) =>
-                  setDraftFloaterRowContent((prev) => ({
-                    ...prev,
-                    [row.id]: val ?? "",
-                  }))
-                }
-                height={120}
-                wikiPages={wikiPages}
-                serialSlug={serialSlug}
-                wikiChapters={wikiChapters}
-                chapterType={chapterType}
-              />
-            </Box>
-          ))}
-        </>
-      )}
+      <PageContentEditor
+        label="Infobox content"
+        savedContent={savedContent}
+        draftContent={draftContent}
+        lastUpdatedIdx={lastUpdatedIdx}
+        selectedChapterIdx={selectedChapterIdx}
+        onChange={setDraftContent}
+        serialSlug={serialSlug}
+        wikiPages={wikiPages}
+        wikiChapters={wikiChapters}
+        chapterType={chapterType}
+        previousRevisionContent={previousRevisionContent}
+        previousRevisionChapterIdx={previousRevisionChapterIdx}
+        onConfirmRemove={onConfirmRemove}
+        allChapters={allChapters}
+        nextRevisionChapterIdx={nextRevisionChapterIdx}
+        height={160}
+      />
     </Box>
   );
 }

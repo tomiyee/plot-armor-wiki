@@ -58,7 +58,7 @@ export function SynopsisReviewPanel(props: SynopsisReviewPanelProps) {
           <Box className="gap-3 items-start flex-col sm:flex-row">
             <Box col className="flex-1 gap-1 min-w-0">
               <Text muted className="text-xs font-medium uppercase tracking-wide">Current</Text>
-              <Box className="rounded-md border border-border bg-muted/30 p-3 text-sm min-h-[80px] overflow-auto">
+              <Box className="rounded-md border border-border bg-muted/30 p-3 text-sm min-h-80px overflow-auto">
                 {currentContent ? (
                   <MarkdownRenderer serialSlug={serialSlug} sm>{currentContent}</MarkdownRenderer>
                 ) : (
@@ -70,7 +70,7 @@ export function SynopsisReviewPanel(props: SynopsisReviewPanelProps) {
               <Text className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--color-primary)" }}>
                 Proposed
               </Text>
-              <Box className="rounded-md border border-primary/40 bg-primary/5 p-3 text-sm min-h-[80px] overflow-auto">
+              <Box className="rounded-md border border-primary/40 bg-primary/5 p-3 text-sm min-h-80px overflow-auto">
                 <MarkdownRenderer serialSlug={serialSlug} sm>
                   {suggestion.proposedContent}
                 </MarkdownRenderer>

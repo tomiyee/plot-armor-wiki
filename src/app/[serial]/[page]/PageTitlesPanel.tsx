@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useServerAction } from "@/hooks/useServerAction";
 import { Text } from "@/components/ui/Text";
 import { Box } from "@/components/ui/Box";
 import { Input } from "@/components/ui/Input";
@@ -46,8 +46,7 @@ export function PageTitlesPanel(props: PageTitlesPanelProps) {
     chapterSelectOptions,
     isPending: externalIsPending,
   } = props;
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const { runAsync, isPending } = useServerAction();
   const [newTitleChapterId, setNewTitleChapterId] = useState<
     number | undefined
   >();
@@ -57,28 +56,21 @@ export function PageTitlesPanel(props: PageTitlesPanelProps) {
 
   function handleAddTitle() {
     if (newTitleChapterId == null || !newTitleText.trim()) return;
-    startTransition(async () => {
-      await addPageTitle(
-        serialSlug,
-        pageSlug,
-        newTitleChapterId,
-        newTitleText.trim(),
-      );
-      setNewTitleText("");
-      setNewTitleChapterId(undefined);
-      router.refresh();
-    });
+    runAsync(
+      () => addPageTitle(serialSlug, pageSlug, newTitleChapterId, newTitleText.trim()),
+      () => {
+        setNewTitleText("");
+        setNewTitleChapterId(undefined);
+      },
+    );
   }
 
   function handleDeleteTitle(chapterId: number) {
-    startTransition(async () => {
-      const result = await deletePageTitle(serialSlug, pageSlug, chapterId);
-      if (result.error) {
-        alert(result.error);
-        return;
-      }
-      router.refresh();
-    });
+    runAsync(
+      () => deletePageTitle(serialSlug, pageSlug, chapterId),
+      undefined,
+      (err) => alert(err),
+    );
   }
 
   return (

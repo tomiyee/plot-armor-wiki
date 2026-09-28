@@ -95,7 +95,12 @@ export default function Navbar(props: NavbarProps) {
         </div>
         {/* Right: search + chapter selector + auth */}
         <Box className="gap-2 items-center">
-          {serialData && <SerialSearch serialSlug={serialData.serialSlug} />}
+          {serialData && (
+            <SerialSearch
+              serialSlug={serialData.serialSlug}
+              isAdmin={serialData.isAdmin}
+            />
+          )}
           {chapterSelectorSlot}
           {authSlot}
         </Box>

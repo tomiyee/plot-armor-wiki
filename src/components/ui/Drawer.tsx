@@ -54,18 +54,18 @@ const directionClasses: Record<
 > = {
   down: {
     popup:
-      "fixed bottom-0 left-0 right-0 max-h-[85dvh] flex-col rounded-t-md data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
+      "fixed bottom-0 left-0 right-0 max-h-85dvh flex-col rounded-t-md data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
   },
   up: {
     popup:
-      "fixed top-0 left-0 right-0 max-h-[85dvh] flex-col rounded-b-md data-open:slide-in-from-top data-closed:slide-out-to-top",
+      "fixed top-0 left-0 right-0 max-h-85dvh flex-col rounded-b-md data-open:slide-in-from-top data-closed:slide-out-to-top",
   },
   left: {
     popup:
-      "fixed left-0 top-0 bottom-0 max-w-[85dvw] flex-row rounded-r-md data-open:slide-in-from-left data-closed:slide-out-to-left",
+      "fixed left-0 top-0 bottom-0 max-w-85dvw flex-row rounded-r-md data-open:slide-in-from-left data-closed:slide-out-to-left",
   },
   right: {
     popup:
-      "fixed right-0 top-0 bottom-0 max-w-[85dvw] flex-row rounded-l-md data-open:slide-in-from-right data-closed:slide-out-to-right",
+      "fixed right-0 top-0 bottom-0 max-w-85dvw flex-row rounded-l-md data-open:slide-in-from-right data-closed:slide-out-to-right",
   },
 };

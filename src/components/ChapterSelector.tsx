@@ -10,7 +10,7 @@ import { Popover } from "@/components/ui/Popover";
 import { Select } from "@/components/ui/Select";
 import type { Option } from "@/components/ui/Select";
 import { BookmarkIcon, XIcon } from "lucide-react";
-import { ChapterData, Volume } from "@/types";
+import { ChapterRow, Volume } from "@/types";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { syncUserProgress } from "@/app/[serial]/actions";
 
@@ -24,7 +24,7 @@ interface ChapterSelectorProps {
   /** All volumes for this serial, used to build grouped chapter options. */
   volumes: Volume[];
   /** Chapters keyed by volume id, used alongside `volumes` to populate the dropdown. */
-  chaptersByVolume: Partial<Record<number, ChapterData[]>>;
+  chaptersByVolume: Partial<Record<number, ChapterRow[]>>;
   /**
    * Chapter ID sourced from the `user_progress` database row (for authenticated
    * users). When provided it seeds the initial selection, overriding any stale

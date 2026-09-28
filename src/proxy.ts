@@ -10,7 +10,8 @@ export default auth((req) => {
 
   if (
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/onboarding")
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/signin")
   ) {
     return NextResponse.next();
   }

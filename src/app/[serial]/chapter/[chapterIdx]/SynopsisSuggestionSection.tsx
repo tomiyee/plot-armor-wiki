@@ -6,10 +6,11 @@ import { Box } from "@/components/ui/Box";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import { SynopsisSuggestionForm } from "./SynopsisSuggestionForm";
+import type { SuggestionStatus } from "@/types";
 
 type MySuggestion = {
   id: number;
-  status: "pending" | "approved" | "rejected";
+  status: SuggestionStatus;
   reviewNote: string | null;
   createdAt: Date;
 } | null;

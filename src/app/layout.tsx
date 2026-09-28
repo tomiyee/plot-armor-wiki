@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/Tooltip";
 import { ToastProvider } from "@/components/ui/Toast";
 import { AuthControls } from "@/components/navbar/AuthControls";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { PreviewAuthBanner } from "@/components/PreviewAuthBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,6 +42,7 @@ export default function RootLayout(props: RootLayoutProps) {
               <EditModeProvider>
                 <NavbarSerialProvider>
                   <Navbar authSlot={<AuthControls />} />
+                  <PreviewAuthBanner />
                   <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                     {children}
                   </div>

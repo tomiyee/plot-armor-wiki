@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { useServerAction } from "@/hooks/useServerAction";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 import { Box } from "@/components/ui/Box";
 import { Text } from "@/components/ui/Text";
@@ -61,20 +61,18 @@ export function ChapterSynopsisEditor(props: ChapterSynopsisEditorProps) {
     chapterType,
     saveAction,
   } = props;
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const { runAsync, isPending } = useServerAction();
   const { isEditing, registerHandlers } = useEditMode();
 
   const [committed, setCommitted] = useState(initialContent);
   const [draft, setDraft] = useState(initialContent);
 
   const handleSave = useCallback(() => {
-    startTransition(async () => {
-      await saveAction(draft);
-      setCommitted(draft);
-      router.refresh();
-    });
-  }, [saveAction, draft, router]);
+    runAsync(
+      () => saveAction(draft),
+      () => setCommitted(draft),
+    );
+  }, [runAsync, saveAction, draft]);
 
   const handleDiscard = useCallback(() => {
     setDraft(committed);

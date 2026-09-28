@@ -344,15 +344,15 @@ function RevisionTimeline(props: RevisionTimelineProps) {
                   <div className="w-16 shrink-0 flex flex-col items-end justify-center">
                     {topLabel.includes(" · ") ? (
                       <>
-                        <Text className="text-[10px] leading-none text-right text-muted-foreground truncate w-full">
+                        <Text className="text-10px leading-none text-right text-muted-foreground truncate w-full">
                           {topLabel.slice(0, topLabel.indexOf(" · "))}
                         </Text>
-                        <Text className="text-[10px] leading-tight text-right truncate w-full">
+                        <Text className="text-10px leading-tight text-right truncate w-full">
                           {topLabel.slice(topLabel.indexOf(" · ") + 3)}
                         </Text>
                       </>
                     ) : (
-                      <Text className="text-[10px] leading-tight text-right truncate w-full">
+                      <Text className="text-10px leading-tight text-right truncate w-full">
                         {topLabel}
                       </Text>
                     )}
@@ -360,7 +360,7 @@ function RevisionTimeline(props: RevisionTimelineProps) {
                   <div className="w-5 flex justify-center shrink-0">
                     <DotNode variant={variant} />
                   </div>
-                  <Text className="text-[10px] leading-tight text-muted-foreground flex-1">
+                  <Text className="text-10px leading-tight text-muted-foreground flex-1">
                     {bottomLabel ?? ""}
                   </Text>
                 </Box>
@@ -634,7 +634,7 @@ export function RemoveRevisionDialog(props: RemoveRevisionDialogProps) {
             </Text>
             {!hasChanges ? (
               <Text className="text-sm text-muted-foreground italic">
-                The previous revision has identical content — no visible change
+                The previous revision has identical content - no visible change
                 to readers.
               </Text>
             ) : (

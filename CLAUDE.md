@@ -87,58 +87,41 @@ First-time visitors default to chapter 1 with a callout to update.
 - Pages with `intro_chapter_id` > cutoff: fully hidden, title withheld.
 - Search: excludes those pages server-side (same SQL filter).
 
+### Data Access Layer (DAL)
+
+All DB read queries live in `src/data/`, organized by domain. **Never write a raw `db.select()` directly in a page or layout component — always go through a DAL function.** Before adding a new query, check whether a DAL function already covers the need.
+
+Each domain lives in `src/data/<domain>/queries.ts`:
+
+- **`serials/`** — serial lookup by slug, listing all serials, fetching author/admin membership lists.
+- **`chapters/`** — chapter and volume lookups by id/idx, full volume+chapter tree for a serial, progress cutoff resolution.
+- **`pages/`** — page lookups by slug or id (live and at-chapter-idx variants), page listings (all, searchable, deleted, parent, home), chapter-filtered content (sections, infobox rows, child pages, title entries), and shared subquery builder helpers used across page queries.
+- **`templates/`** — template listings per serial.
+
+**Adding a new query:** place it in the file whose domain it belongs to (e.g. a new page lookup goes in `src/data/pages/queries.ts`). Add a JSDoc block with `@example`. Import types from `@/types`, not from the DAL files themselves.
+
+Write mutations (inserts/updates/deletes) directly in the Server Action that owns the operation — they are not centralized in the DAL.
+
 ### Key files
 
-| File                                      | Purpose / non-obvious notes                                                                                                                                           |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spec.md`                                 | Canonical product + data model spec. Consult before changing data model or spoiler logic.                                                                             |
-| `src/db/schema.ts`                        | Drizzle table definitions; source of truth.                                                                                                                           |
-| `src/db/index.ts`                         | Drizzle client (postgres.js); exports `db`.                                                                                                                           |
-| `src/app/layout.tsx`                      | Root layout. `overflow-y-auto` wrapper prevents scrollbar shift when dialogs open.                                                                                    |
-| `src/app/[serial]/layout.tsx`             | Fetches serial/volumes/chapters/home-page children; injects `<ChapterSelector>` + `<SerialTOCDrawer>` via `<SerialNavInjector>`.                                      |
-| `src/app/[serial]/page.tsx`               | Serial home; two-column layout with `<SerialTOCSidebar>`.                                                                                                             |
-| `src/app/[serial]/actions.ts`             | Volume/chapter CRUD + reorder. Reorder reassigns `chapters.idx`; no version repair needed (revisions keyed by `chapter_id`).                                          |
-| `src/app/[serial]/new/actions.ts`         | `createPage`: unique slug, inserts page + title + parent relationship, redirects.                                                                                     |
-| `src/app/[serial]/[page]/page.tsx`        | Wiki page view. Reads cutoff from cookie, fetches chapter-filtered content, delegates to `<PageEditor>`.                                                              |
-| `src/app/[serial]/[page]/PageEditor.tsx`  | Client Component owning page body. Edit mode: `<WikiLinkMDEditor>` per section, "Writing as of:" chapter selector, calls `getPageContentAtChapter` on chapter change. |
-| `src/app/[serial]/[page]/actions.ts`      | `savePageContent` (upserts at target chapter) + `getPageContentAtChapter` (pre-fills edit drafts).                                                                    |
-| `src/app/help/page.tsx`                       | Static server-rendered help & documentation page. Covers core concepts, wiki creation, editing (including wiki-link syntax), and the suggestion workflow. Linked from the Navbar and contextual hints throughout the app. |
-| `src/app/[serial]/[page]/suggestionActions.ts` | Server Actions for the user suggestion workflow: submit, approve, reject, query (by page/serial). Also contains `getSectionsAtChapter` (pre-fills suggestion form when target chapter changes). |
-| `src/app/[serial]/[page]/SuggestionForm.tsx` | Inline suggestion form for authenticated non-admins. Edits body sections (MDEditor) + infobox rows (Textarea); fetches content at the chosen target chapter on change. |
-| `src/app/[serial]/[page]/SuggestionReviewPanel.tsx` | Admin review panel: lists pending suggestions with before/after diffs for sections and infobox rows; approve/reject with optional review note. |
-| `src/app/[serial]/chapter/[chapterIdx]/synopsisSuggestionActions.ts` | Server Actions for chapter synopsis suggestions: submit, approve (writes to `chapterSynopses`), reject, query. |
-| `src/app/[serial]/chapter/[chapterIdx]/SynopsisSuggestionSection.tsx` | Client Component: "Suggest an edit" toggle button + status banner for non-admin authenticated users on the chapter page. |
-| `src/app/[serial]/chapter/[chapterIdx]/SynopsisReviewPanel.tsx` | Admin review panel for pending synopsis suggestions on the chapter page: current vs. proposed diff, approve/reject. |
-| `src/lib/auth-guard.ts`                   | `isSerialAdmin`, `requireSerialAdmin`, `isAuthenticated`, `requireAuthenticated` — auth helpers used by Server Components and Server Actions respectively.              |
-| `src/components/SerialEditor.tsx`         | Volume/chapter edit UI with drag-and-drop reorder (`@dnd-kit`). Uses serial's type names (e.g. "Episode"/"Season").                                                   |
-| `src/components/TemplateManager/index.tsx` | Admin UI for managing page templates per serial (add/delete/rename templates, toggle infobox, manage sections and infobox rows with drag-and-drop reorder).           |
-| `src/lib/dndUtils.ts`                     | `useSortableSensors()` and `makeDragEndHandler()` — shared `@dnd-kit` wiring used by all four sortable lists (page sections, page infobox rows, template sections, template infobox rows). |
-| `src/hooks/useOptimisticOrder.ts`         | Optimistic reorder state: updates the list instantly on drag end, syncs back to server data after `router.refresh()`, and reverts on server error.                    |
-| `src/components/SerialMetadataEditor.tsx` | Inline serial title/description/authors/art edit. Redirects on slug change.                                                                                           |
-| `src/components/ChapterSelector.tsx`      | Reads/writes progress via `usePersistedStore` + mirrors to cookie for SSR. Grouped volume dropdown with collapsible headers (collapse state persisted). On first visit shows a `<Popover>` spoiler callout anchored below the trigger button. |
-| `src/components/WikiLinkMDEditor.tsx`     | MDXEditor WYSIWYG + `[[page:Name]]` / `[[chapter:Name]]` autocomplete with cursor-aware suggestions. Custom Lexical node handles wiki-link syntax end-to-end.          |
-| `src/components/ForwardRefEditor.tsx`     | Non-SSR entry point for `@mdxeditor/editor`; imported via `dynamic()` with `{ ssr: false }` to keep browser-only editor code off the server.                         |
-| `src/components/SerialNavInjector.tsx`    | Client Component (renders null); injects serial data into navbar via `useLayoutEffect`.                                                                               |
-| `src/components/ui/MarkdownRenderer.tsx`  | Single source of truth for markdown styling. No `@tailwindcss/typography` — explicit Tailwind classes. Accepts `serialSlug` for wiki links, `sm` for compact mode.    |
-| `src/components/ui/Text.tsx`              | `<Text variant>` typography. Variants: `h1`–`h4`, `body`, `label`. `as` overrides element. `muted` prop applies `text-gray-500`.                                      |
-| `src/components/ui/Select.tsx`            | Searchable, hierarchical `<Select<T>>` combobox with keyboard navigation and ARIA semantics. Supports grouped options (accordion headers), `placeholder`, and `searchable={false}` to hide the search input. Client Component. |
-| `src/components/ui/Dialog.tsx`            | Controlled dialog (`isOpen`/`onClose`).                                                                                                                               |
-| `src/components/ui/Popover.tsx`           | Two-mode popover: **trigger mode** (wraps `children`, self-managed open state) and **anchor mode** (`anchor` ref + controlled `open`). Combobox and ChapterSelector use anchor mode to position dropdowns/callouts under existing elements without a separate trigger. |
-| `src/hooks/useServerAction.ts`            | Wraps server action in `useTransition` + `router.refresh()`. Use in all Client Components calling Server Actions.                                                     |
-| `src/hooks/usePersistedStore.ts`          | `useState`-compatible, backed by `localStorage`. SSR-safe via `useSyncExternalStore`, cross-tab via `storage` event.                                                  |
-| `src/lib/serial-types.ts`                 | `ChapterType`/`VolumeType` types, arrays, parsers, Select options. Single source of truth — don't duplicate.                                                          |
-| `src/lib/wiki-links.ts`                   | `WIKI_LINK_RE`, `parseWikiLink()`, `slugifyWikiName()`. Shared by remark plugin + editor autocomplete.                                                                |
-| `src/lib/remark-wiki-links.ts`            | Remark plugin: `[[page:Name]]` / `[[chapter:Name]]` → markdown links. Skips code blocks.                                                                              |
-| `src/lib/slug.ts`                         | `titleToSlug`; computed at creation and stored in `serials.slug`.                                                                                                     |
-| `src/auth.ts`                             | Auth.js v5 config: Google provider, Drizzle adapter (database sessions), session callback exposing `user.id` + `user.username`.                                       |
-| `src/proxy.ts`                            | Next.js middleware (exported as default). Redirects authenticated users with `username === null` to `/onboarding`; skips `/api/auth/**` to avoid loops.               |
-| `src/app/onboarding/page.tsx`             | Username-pick page shown after first sign-in. Redirects to `/` once username is saved.                                                                                |
-| `src/app/onboarding/actions.ts`           | `setUsername` Server Action: validates uniqueness, writes to `users.username`, invalidates the session cache.                                                         |
-| `src/components/navbar/AuthControls.tsx`  | Server Component: renders `<UserMenu>` when authenticated, or a sign-in button + `<UnauthMenu>` when not. Sign-in button hidden on mobile (`hidden sm:block`).        |
-| `src/components/navbar/UserMenu.tsx`      | Client Component: avatar dropdown with username display and `<SignOutButton>`.                                                                                        |
-| `src/components/navbar/UnauthMenu.tsx`    | Client Component: user-icon button always visible on mobile; opens a dropdown with a sign-in link and theme toggle.                                                   |
-| `src/components/navbar/MobileMenuDrawer.tsx` | Client Component: hamburger button (mobile only) that opens a left-side drawer with serial title, page-category links, and the full TOC.                           |
-| `src/components/navbar/SignOutButton.tsx` | Thin Client Component wrapping `signOut()` as a form action (required by Auth.js for CSRF safety).                                                                    |
+| File | Purpose / non-obvious notes |
+| ---- | --------------------------- |
+| `spec.md` | Canonical product + data model spec. Consult before changing data model or spoiler logic. |
+| `src/db/schema.ts` | Drizzle table definitions; source of truth. |
+| `src/app/[serial]/layout.tsx` | Fetches serial/volumes/chapters/home-page children; injects `<ChapterSelector>` + `<SerialTOCDrawer>` via `<SerialNavInjector>`. |
+| `src/app/[serial]/actions.ts` | Volume/chapter CRUD + reorder. Reorder reassigns `chapters.idx`; no version repair needed (revisions keyed by `chapter_id`). |
+| `src/app/[serial]/[page]/PageEditor.tsx` | Client Component owning page body. Edit mode: `<WikiLinkMDEditor>` per section, "Writing as of:" chapter selector, calls `getPageContentAtChapter` on chapter change. |
+| `src/app/[serial]/[page]/actions.ts` | `savePageContent` (upserts at target chapter) + `getPageContentAtChapter` (pre-fills edit drafts). |
+| `src/app/[serial]/[page]/suggestionActions.ts` | Page suggestion workflow (submit/approve/reject/query). Also contains `getSectionsAtChapter` which pre-fills the suggestion form when the target chapter changes. |
+| `src/app/[serial]/chapter/[chapterIdx]/synopsisSuggestionActions.ts` | Synopsis suggestion workflow; approve writes to `chapterSynopses`. |
+| `src/lib/auth-guard.ts` | `isSerialAdmin`/`isAuthenticated` for Server Components; `requireSerialAdmin`/`requireAuthenticated` (throw on failure) for Server Actions. |
+| `src/components/ChapterSelector.tsx` | Reads/writes progress via `usePersistedStore` + mirrors to cookie for SSR. On first visit shows a spoiler callout `<Popover>`. |
+| `src/components/WikiLinkMDEditor.tsx` | MDXEditor WYSIWYG + `[[page:Name]]`/`[[chapter:Name]]` autocomplete. Custom Lexical node handles wiki-link syntax end-to-end. |
+| `src/components/SerialEditor.tsx` | Volume/chapter edit UI with drag-and-drop reorder (`@dnd-kit`). Uses the serial's type names (e.g. "Episode"/"Season"). |
+| `src/components/ui/MarkdownRenderer.tsx` | Single source of truth for markdown styling. No `@tailwindcss/typography` — explicit Tailwind classes. Accepts `serialSlug` for wiki links, `sm` for compact mode. |
+| `src/hooks/useServerAction.ts` | Wraps a Server Action in `useTransition` + `router.refresh()`. Use in all Client Components calling Server Actions. |
+| `src/hooks/usePersistedStore.ts` | `useState`-compatible, backed by `localStorage`. SSR-safe via `useSyncExternalStore`, cross-tab via `storage` event. |
+| `src/lib/serial-types.ts` | `ChapterType`/`VolumeType` types, arrays, parsers, Select options. Single source of truth — don't duplicate. |
 
 ### React import conventions
 
@@ -167,9 +150,11 @@ Always use design-system components instead of bare HTML:
 
 ### JSDoc conventions
 
-All exported components, hooks, and helpers must have a JSDoc block with at least one `@example`. Explain the non-obvious WHY — not what the name already says. Omit `@param`/`@returns` when types are self-documenting.
+All exported components, hooks, and helpers must have a JSDoc block. Explain the non-obvious WHY — not what the name already says. Omit `@param`/`@returns` when types are self-documenting.
 
-**Exception:** Skip JSDoc for functions bespoke to a single file (not exported for reuse) when name + signature are self-documenting.
+Add `@example` only when the behavior is non-obvious or the usage has tricky patterns (e.g. two-mode APIs, required call order, SSR caveats). Skip it when the signature makes usage self-evident.
+
+**Exception:** Skip JSDoc entirely for functions bespoke to a single file (not exported for reuse) when name + signature are self-documenting.
 
 ```ts
 /**

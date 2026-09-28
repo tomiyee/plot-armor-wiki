@@ -1,8 +1,6 @@
-import { auth } from "@/auth";
-import { db } from "@/db/index";
-import { serialAdmins, pages } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
-import { getSerialBySlug } from "@/db/queries";
+import { auth, PREVIEW_USER } from "@/auth";
+import { getSerialBySlug, checkSerialAdminMembership } from "@/data/serials/queries";
+import { fetchPageSerialId } from "@/data/pages/queries";
 
 /**
  * Returns `true` when the currently authenticated user is an admin of the given
@@ -19,19 +17,9 @@ import { getSerialBySlug } from "@/db/queries";
 export async function isSerialAdmin(serialId: number): Promise<boolean> {
   const session = await auth();
   if (!session?.user?.id) return false;
+  if (session.user.id === PREVIEW_USER.id) return true;
 
-  const [row] = await db
-    .select({ userId: serialAdmins.userId })
-    .from(serialAdmins)
-    .where(
-      and(
-        eq(serialAdmins.userId, session.user.id),
-        eq(serialAdmins.serialId, serialId),
-      ),
-    )
-    .limit(1);
-
-  return !!row;
+  return checkSerialAdminMembership(session.user.id, serialId);
 }
 
 /**
@@ -53,16 +41,10 @@ export async function requireSerialAdmin(serialId: number): Promise<string> {
     throw new Error("Unauthorized: sign in to perform this action.");
 
   const userId = session.user.id;
+  if (userId === PREVIEW_USER.id) return userId;
 
-  const [row] = await db
-    .select({ userId: serialAdmins.userId })
-    .from(serialAdmins)
-    .where(
-      and(eq(serialAdmins.userId, userId), eq(serialAdmins.serialId, serialId)),
-    )
-    .limit(1);
-
-  if (!row)
+  const isAdmin = await checkSerialAdminMembership(userId, serialId);
+  if (!isAdmin)
     throw new Error("Unauthorized: you are not an admin of this serial.");
 
   return userId;
@@ -134,13 +116,9 @@ export async function requireAuthenticated(): Promise<string> {
 export async function requireSerialAdminByPageId(
   pageId: number,
 ): Promise<string> {
-  const [page] = await db
-    .select({ serialId: pages.serialId })
-    .from(pages)
-    .where(eq(pages.id, pageId))
-    .limit(1);
+  const serialId = await fetchPageSerialId(pageId);
 
-  if (!page) throw new Error("Page not found.");
+  if (!serialId) throw new Error("Page not found.");
 
-  return requireSerialAdmin(page.serialId);
+  return requireSerialAdmin(serialId);
 }

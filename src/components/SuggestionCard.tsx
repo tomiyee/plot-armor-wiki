@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import type { ReactNode } from "react";
+import { useServerAction } from "@/hooks/useServerAction";
 import { Box } from "@/components/ui/Box";
 import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
@@ -58,8 +58,7 @@ export function SuggestionCard(props: SuggestionCardProps) {
     children,
   } = props;
 
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const { runAsync, isPending } = useServerAction();
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [reviewNote, setReviewNote] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -78,15 +77,11 @@ export function SuggestionCard(props: SuggestionCardProps) {
     note?: string,
   ) {
     setActionError(null);
-    startTransition(async () => {
-      const result = await action(note);
-      if (result.error) {
-        setActionError(result.error);
-      } else {
-        setResolved(true);
-        router.refresh();
-      }
-    });
+    runAsync(
+      () => action(note),
+      () => setResolved(true),
+      (err) => setActionError(err),
+    );
   }
 
   return (

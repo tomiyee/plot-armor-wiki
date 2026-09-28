@@ -115,6 +115,18 @@ export function WikiLinkEditPopover(props: WikiLinkEditPopoverProps) {
 
   const selectOptions = useMemo((): Option<string>[] => {
     const hasChapters = wikiChapters.length > 0 && !!chapterType;
+
+    // Count occurrences of each page name to detect duplicates.
+    const nameCounts = new Map<string, number>();
+    for (const p of wikiPages) {
+      nameCounts.set(p.name, (nameCounts.get(p.name) ?? 0) + 1);
+    }
+    const pageOptions = wikiPages.map((p) => ({
+      label: p.name,
+      description: (nameCounts.get(p.name) ?? 0) > 1 ? `(${p.slug})` : undefined,
+      value: `page:${p.slug}`,
+    }));
+
     if (hasChapters) {
       return [
         ...(wikiPages.length > 0
@@ -123,10 +135,7 @@ export function WikiLinkEditPopover(props: WikiLinkEditPopoverProps) {
                 label: "Pages",
                 value: null as unknown as string,
                 structural: true,
-                children: wikiPages.map((p) => ({
-                  label: p.name,
-                  value: `page:${p.slug}`,
-                })),
+                children: pageOptions,
               },
             ]
           : []),
@@ -141,7 +150,7 @@ export function WikiLinkEditPopover(props: WikiLinkEditPopoverProps) {
         },
       ];
     }
-    return wikiPages.map((p) => ({ label: p.name, value: `page:${p.slug}` }));
+    return pageOptions;
   }, [wikiPages, wikiChapters, chapterType]);
 
   function handleTokenChange(token: string) {

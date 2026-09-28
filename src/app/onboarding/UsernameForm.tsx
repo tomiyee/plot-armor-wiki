@@ -31,6 +31,8 @@ export function UsernameForm() {
           placeholder="e.g. reader_42"
           autoFocus
           autoComplete="off"
+          data-lpignore="true"
+          data-1p-ignore
         />
         <Text variant="label" muted className="text-xs">
           3–20 characters: letters, numbers, and underscores only.

@@ -23,7 +23,7 @@ export async function AuthControls() {
   if (!session?.user) {
     return (
       <>
-        <Link href="/api/auth/signin" className="hidden sm:block">
+        <Link href="/signin" className="hidden sm:block">
           <Button size="sm">Sign in</Button>
         </Link>
         <UnauthMenu />

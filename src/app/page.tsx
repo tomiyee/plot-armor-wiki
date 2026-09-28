@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { db } from "@/db/index";
-import { serials } from "@/db/schema";
+import { fetchAllSerials } from "@/data/serials/queries";
 import SerialList from "@/components/SerialList";
 import { Text } from "@/components/ui/Text";
 import { PageContainer } from "@/components/ui/PageContainer";
@@ -8,7 +7,7 @@ import { PageContainer } from "@/components/ui/PageContainer";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const allSerials = await db.select().from(serials);
+  const allSerials = await fetchAllSerials();
 
   return (
     <main className="flex-1 min-h-0 overflow-y-scroll flex flex-col items-center">

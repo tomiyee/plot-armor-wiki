@@ -1,34 +1,17 @@
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
-import { db } from "@/db/index";
-import {
-  serials,
-  serialAuthors,
-  volumes,
-  chapters,
-  pages,
-  pageSections,
-  pageSectionRevisions,
-  pageInfoboxSections,
-  pageInfoboxRevisions,
-  pageInfoboxImageRevisions,
-  pageRelationships,
-  pageTitles,
-  templates,
-  templateSections,
-  templateInfoboxSections,
-  serialAdmins,
-  users,
-} from "@/db/schema";
-import { and, asc, eq, inArray, isNull, lte, max, or } from "drizzle-orm";
+import { getSerialBySlug, fetchSerialAuthors, fetchSerialAdmins } from "@/data/serials/queries";
+import { getChapterCutoff, getSerialVolumesAndChapters } from "@/data/chapters/queries";
 import {
   resolvePageTitlesAtIdx,
-  resolveHasChildrenSet,
-  sectionMaxIdxSq as buildSectionMaxIdxSq,
-  infoboxRowMaxIdxSq as buildInfoboxRowMaxIdxSq,
-  childRelMaxIdxSq as buildChildRelMaxIdxSq,
-  getChapterIdxById,
-} from "@/db/queries";
+  fetchSerialPagesAtIdx,
+  fetchSerialHomePage,
+  fetchDeletedPages,
+  fetchPageContentAtIdx,
+  fetchPageInfoboxAtIdx,
+  fetchPageChildPagesAtIdx,
+  fetchPageTitleEntries,
+} from "@/data/pages/queries";
+import type { ChapterRow, ChildPageStub, PageTitleEntry } from "@/types";
 import {
   addChapter,
   addVolume,
@@ -41,16 +24,6 @@ import {
   reorderAllChapters,
   updateSerialMetadata,
   bulkApplyToc,
-  createTemplate,
-  deleteTemplate,
-  renameTemplate,
-  toggleTemplateInfobox,
-  addTemplateSection,
-  deleteTemplateSection,
-  reorderTemplateSections,
-  addTemplateInfoboxSection,
-  deleteTemplateInfoboxSection,
-  reorderTemplateInfoboxSections,
   addSerialAdmin,
   removeSerialAdmin,
   searchUsersForSerial,
@@ -61,7 +34,6 @@ import { Text } from "@/components/ui/Text";
 import { SerialMetadataEditor } from "@/components/SerialMetadataEditor";
 import { SerialTOCSidebar } from "@/components/SerialTOCSidebar";
 import { PageEditor } from "./[page]/PageEditor";
-import { TemplateManager } from "@/components/TemplateManager";
 import { AdminManager } from "@/components/AdminManager";
 import { EditModeAdminSetter } from "@/contexts/EditModeContext";
 import { isSerialAdmin } from "@/lib/auth-guard";
@@ -73,39 +45,19 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/Accordion";
+import { DeletedPagesButton } from "@/components/DeletedPagesButton";
 
 interface SerialPageProps {
   /** Next.js dynamic route params containing the `serial` slug. */
   params: Promise<{ serial: string }>;
 }
 
-async function getChapterCutoff(
-  serialId: number,
-): Promise<{ cutoffIdx: number; readingChapterId: number | null }> {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(`plotarmor_chapter_${serialId}`)?.value;
-  if (!raw) return { cutoffIdx: 0, readingChapterId: null };
-
-  const chapterId = parseInt(raw, 10);
-  if (isNaN(chapterId)) return { cutoffIdx: 0, readingChapterId: null };
-
-  const idx = await getChapterIdxById(chapterId);
-
-  if (idx === null) return { cutoffIdx: 0, readingChapterId: null };
-  return { cutoffIdx: idx, readingChapterId: chapterId };
-}
-
-/** Serial home page: metadata editor, home wiki page content, template manager, and admin controls. */
+/** Serial home page: metadata editor, home wiki page content, and admin controls. */
 export default async function SerialPage(props: SerialPageProps) {
   const { params } = props;
   const { serial: serialSlug } = await params;
 
-  const [serial] = await db
-    .select()
-    .from(serials)
-    .where(eq(serials.slug, serialSlug))
-    .limit(1);
-
+  const serial = await getSerialBySlug(serialSlug);
   if (!serial) {
     notFound();
   }
@@ -113,84 +65,19 @@ export default async function SerialPage(props: SerialPageProps) {
   const [
     chapterCutoff,
     authors,
-    volumeList,
-    chapterList,
+    { volumeList, chapterList },
     homePage,
-    serialTemplates,
     isAdmin,
     serialAdminList,
     session,
     pendingSuggestionsByPage,
   ] = await Promise.all([
     getChapterCutoff(serial.id),
-    db
-      .select()
-      .from(serialAuthors)
-      .where(eq(serialAuthors.serialId, serial.id))
-      .orderBy(serialAuthors.displayOrder),
-    db
-      .select()
-      .from(volumes)
-      .where(eq(volumes.serialId, serial.id))
-      .orderBy(volumes.idx),
-    db
-      .select({
-        id: chapters.id,
-        displayName: chapters.displayName,
-        idx: chapters.idx,
-        volumeId: chapters.volumeId,
-      })
-      .from(chapters)
-      .innerJoin(volumes, eq(chapters.volumeId, volumes.id))
-      .where(eq(volumes.serialId, serial.id))
-      .orderBy(chapters.idx),
-    db
-      .select()
-      .from(pages)
-      .where(and(eq(pages.serialId, serial.id), eq(pages.isHomePage, true)))
-      .limit(1)
-      .then((rows) => rows[0] ?? null),
-    // Fetch all templates with their sections and infobox sections.
-    db
-      .select({
-        id: templates.id,
-        name: templates.name,
-        hasInfobox: templates.hasInfobox,
-      })
-      .from(templates)
-      .where(eq(templates.serialId, serial.id))
-      .orderBy(asc(templates.name))
-      .then(async (rows) => {
-        if (rows.length === 0) return [];
-        const templateIds = rows.map((r) => r.id);
-        const [sectionRows, infoboxRows] = await Promise.all([
-          db
-            .select()
-            .from(templateSections)
-            .where(inArray(templateSections.templateId, templateIds))
-            .orderBy(asc(templateSections.displayOrder)),
-          db
-            .select()
-            .from(templateInfoboxSections)
-            .where(inArray(templateInfoboxSections.templateId, templateIds))
-            .orderBy(asc(templateInfoboxSections.displayOrder)),
-        ]);
-        return rows.map((t) => ({
-          id: t.id,
-          name: t.name,
-          hasInfobox: t.hasInfobox,
-          sections: sectionRows.filter((s) => s.templateId === t.id),
-          infoboxSections: infoboxRows.filter((s) => s.templateId === t.id),
-        }));
-      }),
+    fetchSerialAuthors(serial.id),
+    getSerialVolumesAndChapters(serial.id),
+    fetchSerialHomePage(serial.id),
     isSerialAdmin(serial.id),
-    // Fetch all admins for this serial joined with their usernames.
-    db
-      .select({ userId: serialAdmins.userId, username: users.username })
-      .from(serialAdmins)
-      .innerJoin(users, eq(serialAdmins.userId, users.id))
-      .where(eq(serialAdmins.serialId, serial.id))
-      .orderBy(asc(serialAdmins.grantedAt)),
+    fetchSerialAdmins(serial.id),
     auth(),
     getPendingSuggestionsByPage(serial.id),
   ]);
@@ -198,10 +85,9 @@ export default async function SerialPage(props: SerialPageProps) {
   const { cutoffIdx, readingChapterId } = chapterCutoff;
   const isUserAuthenticated = !!session?.user?.id;
 
-  const chaptersByVolume: Record<
-    number,
-    { id: number; displayName: string; idx: number; volumeId: number }[]
-  > = {};
+  const deletedPages = isAdmin ? await fetchDeletedPages(serial.id) : [];
+
+  const chaptersByVolume: Record<number, ChapterRow[]> = {};
   volumeList.forEach((v) => {
     chaptersByVolume[v.id] = [];
   });
@@ -226,32 +112,6 @@ export default async function SerialPage(props: SerialPageProps) {
   const removeAdminForSerial = removeSerialAdmin.bind(null, serial.id);
   const searchUsersForThisSerial = searchUsersForSerial.bind(null, serial.id);
 
-  // Template actions bound to this serial.
-  const createTemplateForSerial = createTemplate.bind(null, serial.id);
-  const deleteTemplateForSerial = deleteTemplate.bind(null, serial.id);
-  const renameTemplateForSerial = renameTemplate.bind(null, serial.id);
-  const toggleTemplateInfoboxForSerial = toggleTemplateInfobox.bind(
-    null,
-    serial.id,
-  );
-  const addTemplateSectionForSerial = addTemplateSection.bind(null, serial.id);
-  const deleteTemplateSectionForSerial = deleteTemplateSection.bind(
-    null,
-    serial.id,
-  );
-  const reorderTemplateSectionsForSerial = reorderTemplateSections.bind(
-    null,
-    serial.id,
-  );
-  const addTemplateInfoboxSectionForSerial = addTemplateInfoboxSection.bind(
-    null,
-    serial.id,
-  );
-  const deleteTemplateInfoboxSectionForSerial =
-    deleteTemplateInfoboxSection.bind(null, serial.id);
-  const reorderTemplateInfoboxSectionsForSerial =
-    reorderTemplateInfoboxSections.bind(null, serial.id);
-
   const headChapterId = chapterList.at(-1)?.id ?? null;
   const volumeNameById = new Map(volumeList.map((v) => [v.id, v.displayName]));
   const allChapters = chapterList.map((c) => ({
@@ -263,21 +123,13 @@ export default async function SerialPage(props: SerialPageProps) {
 
   // Wiki pages visible at the reader's cutoff. Pages with null introChapterId
   // (the home page) are always included since they predate any chapters.
-  const rawWikiPages = await db
-    .select({ id: pages.id, name: pages.name, slug: pages.slug })
-    .from(pages)
-    .leftJoin(chapters, eq(pages.introChapterId, chapters.id))
-    .where(
-      and(
-        eq(pages.serialId, serial.id),
-        or(isNull(pages.introChapterId), lte(chapters.idx, cutoffIdx)),
-      ),
-    )
-    .orderBy(asc(pages.name));
+  const rawWikiPages = await fetchSerialPagesAtIdx(serial.id, cutoffIdx);
 
   // Resolve chapter-versioned titles for all wiki pages at the reader's cutoff.
-  const wikiPageIds = rawWikiPages.map((p) => p.id);
-  const wikiTitleByPageId = await resolvePageTitlesAtIdx(wikiPageIds, cutoffIdx);
+  const wikiTitleByPageId = await resolvePageTitlesAtIdx(
+    rawWikiPages.map((p) => p.id),
+    cutoffIdx,
+  );
 
   // slug → chapter-versioned title (falls back to pages.name for pages without title entries).
   const wikiPageTitles: Record<string, string> = Object.fromEntries(
@@ -289,230 +141,29 @@ export default async function SerialPage(props: SerialPageProps) {
   }));
 
   // ── Home page content ─────────────────────────────────────────────────────
-  let pageSectionStructure: {
-    id: number;
-    name: string;
-    displayOrder: number;
-  }[] = [];
-  let sections: {
-    id: number;
-    name: string;
-    content: string;
-    lastUpdatedChapterIdx: number | null;
-  }[] = [];
-  let infoboxSectionStructure: {
-    id: number;
-    label: string;
-    displayOrder: number;
-  }[] = [];
-  let floaterImageUrl: string | null | undefined = undefined;
-  let floaterRows: { id: number; label: string; content: string }[] = [];
-  let childPages: {
-    id: number;
-    name: string;
-    slug: string;
-    title: string;
-    hasChildren: boolean;
-  }[] = [];
+  let content = "";
+  let contentLastUpdatedChapterIdx: number | null = null;
+  let infoboxContent = "";
+  let infoboxLastUpdatedChapterIdx: number | null = null;
+  let floaterImageUrl: string | null = null;
+  let childPages: ChildPageStub[] = [];
+  let homePageTitleEntries: PageTitleEntry[] = [];
 
   if (homePage) {
-    const sectionMaxIdxSq = buildSectionMaxIdxSq(homePage.id, cutoffIdx);
-
-    const [activeSections, sectionVersions] = await Promise.all([
-      db
-        .select({
-          id: pageSections.id,
-          name: pageSections.name,
-          displayOrder: pageSections.displayOrder,
-        })
-        .from(pageSections)
-        .where(
-          and(
-            eq(pageSections.pageId, homePage.id),
-            isNull(pageSections.deletedAt),
-          ),
-        )
-        .orderBy(asc(pageSections.displayOrder)),
-      db
-        .select({
-          sectionId: pageSectionRevisions.sectionId,
-          content: pageSectionRevisions.content,
-          chapterIdx: chapters.idx,
-        })
-        .from(pageSectionRevisions)
-        .innerJoin(chapters, eq(pageSectionRevisions.chapterId, chapters.id))
-        .innerJoin(
-          sectionMaxIdxSq,
-          and(
-            eq(pageSectionRevisions.sectionId, sectionMaxIdxSq.sectionId),
-            eq(chapters.idx, sectionMaxIdxSq.maxIdx),
-          ),
-        )
-        .where(eq(pageSectionRevisions.pageId, homePage.id)),
+    const [pageContent, infobox, fetchedChildPages, titleEntries] = await Promise.all([
+      fetchPageContentAtIdx(homePage.id, cutoffIdx),
+      fetchPageInfoboxAtIdx(homePage.id, cutoffIdx),
+      fetchPageChildPagesAtIdx(homePage.id, cutoffIdx),
+      fetchPageTitleEntries(homePage.id),
     ]);
 
-    const versionBySectionId = new Map(
-      sectionVersions.map((v) => [
-        v.sectionId,
-        { content: v.content, chapterIdx: v.chapterIdx },
-      ]),
-    );
-    pageSectionStructure = activeSections.map((s) => ({
-      id: s.id,
-      name: s.name,
-      displayOrder: s.displayOrder,
-    }));
-    sections = activeSections.map((s) => {
-      const v = versionBySectionId.get(s.id);
-      return {
-        id: s.id,
-        name: s.name,
-        content: v?.content ?? "",
-        lastUpdatedChapterIdx: v?.chapterIdx ?? null,
-      };
-    });
-
-    const activeInfoboxRows = await db
-      .select({
-        id: pageInfoboxSections.id,
-        label: pageInfoboxSections.label,
-        displayOrder: pageInfoboxSections.displayOrder,
-      })
-      .from(pageInfoboxSections)
-      .where(
-        and(
-          eq(pageInfoboxSections.pageId, homePage.id),
-          isNull(pageInfoboxSections.deletedAt),
-        ),
-      )
-      .orderBy(asc(pageInfoboxSections.displayOrder));
-
-    infoboxSectionStructure = activeInfoboxRows;
-
-    if (activeInfoboxRows.length > 0) {
-      const floaterMaxIdxSq = db
-        .select({ maxIdx: max(chapters.idx).as("max_idx") })
-        .from(pageInfoboxImageRevisions)
-        .innerJoin(
-          chapters,
-          eq(pageInfoboxImageRevisions.chapterId, chapters.id),
-        )
-        .where(
-          and(
-            eq(pageInfoboxImageRevisions.pageId, homePage.id),
-            lte(chapters.idx, cutoffIdx),
-          ),
-        )
-        .as("floater_max_idx_sq");
-
-      const ibRowMaxIdxSq = buildInfoboxRowMaxIdxSq(homePage.id, cutoffIdx);
-
-      const [[floaterVersion], infoboxRowVersions] = await Promise.all([
-        db
-          .select({ imageUrl: pageInfoboxImageRevisions.imageUrl })
-          .from(pageInfoboxImageRevisions)
-          .innerJoin(
-            chapters,
-            eq(pageInfoboxImageRevisions.chapterId, chapters.id),
-          )
-          .innerJoin(floaterMaxIdxSq, eq(chapters.idx, floaterMaxIdxSq.maxIdx))
-          .where(eq(pageInfoboxImageRevisions.pageId, homePage.id))
-          .limit(1),
-        db
-          .select({
-            infoboxSectionId: pageInfoboxRevisions.infoboxSectionId,
-            content: pageInfoboxRevisions.content,
-          })
-          .from(pageInfoboxRevisions)
-          .innerJoin(chapters, eq(pageInfoboxRevisions.chapterId, chapters.id))
-          .innerJoin(
-            ibRowMaxIdxSq,
-            and(
-              eq(
-                pageInfoboxRevisions.infoboxSectionId,
-                ibRowMaxIdxSq.infoboxSectionId,
-              ),
-              eq(chapters.idx, ibRowMaxIdxSq.maxIdx),
-            ),
-          )
-          .where(eq(pageInfoboxRevisions.pageId, homePage.id)),
-      ]);
-
-      const rowContentMap = new Map(
-        infoboxRowVersions.map((v) => [v.infoboxSectionId, v.content]),
-      );
-      floaterImageUrl = floaterVersion?.imageUrl ?? null;
-      floaterRows = activeInfoboxRows.map((r) => ({
-        id: r.id,
-        label: r.label,
-        content: rowContentMap.get(r.id) ?? "",
-      }));
-    }
-
-    // Child pages active at the user's cutoff (same max-idx pattern).
-    const relMaxIdxSq = buildChildRelMaxIdxSq(homePage.id, cutoffIdx);
-
-    const childPagesRaw = await db
-      .select({
-        id: pages.id,
-        name: pages.name,
-        slug: pages.slug,
-        isActive: pageRelationships.isActive,
-      })
-      .from(pageRelationships)
-      .innerJoin(pages, eq(pageRelationships.childPageId, pages.id))
-      .innerJoin(chapters, eq(pageRelationships.chapterId, chapters.id))
-      .innerJoin(
-        relMaxIdxSq,
-        and(
-          eq(pageRelationships.childPageId, relMaxIdxSq.childPageId),
-          eq(chapters.idx, relMaxIdxSq.maxIdx),
-        ),
-      )
-      .where(eq(pageRelationships.parentPageId, homePage.id));
-
-    const activeChildPages = childPagesRaw.filter((r) => r.isActive);
-    const childPageIds = activeChildPages.map((r) => r.id);
-    const [childTitleMap, hasChildrenSet] = await Promise.all([
-      resolvePageTitlesAtIdx(childPageIds, cutoffIdx),
-      resolveHasChildrenSet(childPageIds, cutoffIdx),
-    ]);
-
-    childPages = activeChildPages.map((r) => ({
-      id: r.id,
-      name: r.name,
-      slug: r.slug,
-      title: childTitleMap.get(r.id) ?? r.name,
-      hasChildren: hasChildrenSet.has(r.id),
-    }));
-  }
-
-  // ── Home page temporal title entries (for the edit-mode Titles panel) ────────
-  let homePageTitleEntries: {
-    chapterId: number;
-    chapterLabel: string;
-    title: string;
-  }[] = [];
-
-  if (homePage) {
-    const allTitleRows = await db
-      .select({
-        chapterId: pageTitles.chapterId,
-        title: pageTitles.title,
-        chapterDisplayName: chapters.displayName,
-        volumeName: volumes.displayName,
-      })
-      .from(pageTitles)
-      .innerJoin(chapters, eq(pageTitles.chapterId, chapters.id))
-      .innerJoin(volumes, eq(chapters.volumeId, volumes.id))
-      .where(eq(pageTitles.pageId, homePage.id))
-      .orderBy(asc(chapters.idx));
-
-    homePageTitleEntries = allTitleRows.map((r) => ({
-      chapterId: r.chapterId,
-      chapterLabel: `${r.volumeName} - ${r.chapterDisplayName}`,
-      title: r.title,
-    }));
+    content = pageContent.content;
+    contentLastUpdatedChapterIdx = pageContent.lastUpdatedChapterIdx;
+    infoboxContent = infobox.content;
+    infoboxLastUpdatedChapterIdx = infobox.lastUpdatedChapterIdx;
+    floaterImageUrl = infobox.imageUrl;
+    childPages = fetchedChildPages;
+    homePageTitleEntries = titleEntries;
   }
 
   return (
@@ -551,7 +202,7 @@ export default async function SerialPage(props: SerialPageProps) {
             <SerialMetadataEditor
               title={serial.title}
               splashArtUrl={serial.splashArtUrl}
-              authors={authors.map((a) => a.name)}
+              authors={authors}
               updateMetadataAction={updateMetadataForSerial}
               isAdmin={isAdmin}
             />
@@ -613,11 +264,11 @@ export default async function SerialPage(props: SerialPageProps) {
                 pageSlug={homePage.slug}
                 pageId={homePage.id}
                 pageTitleEntries={homePageTitleEntries}
-                pageSectionStructure={pageSectionStructure}
-                sections={sections}
-                infoboxSectionStructure={infoboxSectionStructure}
+                content={content}
+                contentLastUpdatedChapterIdx={contentLastUpdatedChapterIdx}
+                infoboxContent={infoboxContent}
+                infoboxLastUpdatedChapterIdx={infoboxLastUpdatedChapterIdx}
                 floaterImageUrl={floaterImageUrl}
-                floaterRows={floaterRows}
                 allChapters={allChapters}
                 headChapterId={headChapterId}
                 readingChapterId={readingChapterId}
@@ -636,42 +287,29 @@ export default async function SerialPage(props: SerialPageProps) {
                 isHomePage
                 isAdmin={isAdmin}
                 isAuthenticated={isUserAuthenticated}
+                subPagesAdornment={
+                  isAdmin && deletedPages.length > 0 ? (
+                    <DeletedPagesButton
+                      serialSlug={serialSlug}
+                      deletedPages={deletedPages.map((p) => ({
+                        id: p.id,
+                        name: p.name,
+                        slug: p.slug,
+                        deletedAt: p.deletedAt,
+                        deletionReason: p.deletionReason,
+                      }))}
+                    />
+                  ) : undefined
+                }
                 editModeHeader={
-                  <>
-                    <AdminManager
-                      serialId={serial.id}
-                      currentUserId={session?.user?.id ?? ""}
-                      admins={serialAdminList}
-                      addAdminAction={addAdminForSerial}
-                      removeAdminAction={removeAdminForSerial}
-                      searchUsersAction={searchUsersForThisSerial}
-                    />
-                    <TemplateManager
-                      templates={serialTemplates}
-                      createTemplateAction={createTemplateForSerial}
-                      deleteTemplateAction={deleteTemplateForSerial}
-                      renameTemplateAction={renameTemplateForSerial}
-                      toggleTemplateInfoboxAction={
-                        toggleTemplateInfoboxForSerial
-                      }
-                      addTemplateSectionAction={addTemplateSectionForSerial}
-                      deleteTemplateSectionAction={
-                        deleteTemplateSectionForSerial
-                      }
-                      reorderTemplateSectionAction={
-                        reorderTemplateSectionsForSerial
-                      }
-                      addTemplateInfoboxSectionAction={
-                        addTemplateInfoboxSectionForSerial
-                      }
-                      deleteTemplateInfoboxSectionAction={
-                        deleteTemplateInfoboxSectionForSerial
-                      }
-                      reorderTemplateInfoboxSectionAction={
-                        reorderTemplateInfoboxSectionsForSerial
-                      }
-                    />
-                  </>
+                  <AdminManager
+                    serialId={serial.id}
+                    currentUserId={session?.user?.id ?? ""}
+                    admins={serialAdminList}
+                    addAdminAction={addAdminForSerial}
+                    removeAdminAction={removeAdminForSerial}
+                    searchUsersAction={searchUsersForThisSerial}
+                  />
                 }
               />
             ) : (

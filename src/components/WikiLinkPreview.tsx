@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { HoverCard } from "@/components/ui/HoverCard";
 import { Text } from "@/components/ui/Text";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
@@ -124,9 +124,9 @@ function PreviewContent(props: PreviewContentProps) {
   }
 
   const truncatedContent =
-    preview.firstSectionContent.length > PREVIEW_CHARS
-      ? preview.firstSectionContent.slice(0, PREVIEW_CHARS).trimEnd() + "…"
-      : preview.firstSectionContent;
+    preview.bodyContent.length > PREVIEW_CHARS
+      ? preview.bodyContent.slice(0, PREVIEW_CHARS).trimEnd() + "…"
+      : preview.bodyContent;
 
   return (
     <div className="flex flex-col gap-2">
@@ -144,28 +144,16 @@ function PreviewContent(props: PreviewContentProps) {
         )}
       </div>
 
-      {/* Floater rows */}
-      {preview.floaterRows.length > 0 && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs border-t border-border pt-2">
-          {preview.floaterRows
-            .filter((r) => r.content)
-            .slice(0, 4)
-            .map((row) => (
-              <Fragment key={row.label}>
-                <dt className="text-muted-foreground font-medium whitespace-nowrap">
-                  {row.label}
-                </dt>
-                <dd className="text-foreground">
-                  <MarkdownRenderer sm serialSlug={serialSlug} pageTitles={preview.pageTitles}>
-                    {row.content}
-                  </MarkdownRenderer>
-                </dd>
-              </Fragment>
-            ))}
-        </dl>
+      {/* Infobox content */}
+      {preview.infoboxContent && (
+        <div className="text-xs border-t border-border pt-2">
+          <MarkdownRenderer sm serialSlug={serialSlug} pageTitles={preview.pageTitles}>
+            {preview.infoboxContent}
+          </MarkdownRenderer>
+        </div>
       )}
 
-      {/* First section text */}
+      {/* Body excerpt */}
       {truncatedContent && (
         <div className="border-t border-border pt-2">
           <MarkdownRenderer
@@ -179,7 +167,7 @@ function PreviewContent(props: PreviewContentProps) {
         </div>
       )}
 
-      {!truncatedContent && preview.floaterRows.length === 0 && (
+      {!truncatedContent && !preview.infoboxContent && (
         <Text muted className="text-xs">
           No content yet.
         </Text>

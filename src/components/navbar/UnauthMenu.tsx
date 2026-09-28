@@ -29,7 +29,14 @@ export function UnauthMenu() {
             Help
           </MenuItem>
           <ThemeMenuItem />
-          <MenuItem href="/api/auth/signin" onClick={() => setOpen(false)}>
+          <MenuItem
+            onClick={() => {
+              setOpen(false);
+              window.location.assign(
+                `/signin?callbackUrl=${encodeURIComponent(window.location.href)}`,
+              );
+            }}
+          >
             <LogInIcon className="size-4" />
             Sign in
           </MenuItem>

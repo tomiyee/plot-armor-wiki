@@ -451,7 +451,7 @@ function LeafRow(props: LeafRowProps) {
     >
       <span className="truncate text-sm leading-9">{label}</span>
       {description && (
-        <span className="truncate text-xs text-muted-foreground leading-9 shrink-0 max-w-[40%]">
+        <span className="truncate text-xs text-muted-foreground leading-9 shrink-0 max-w-40%">
           {description}
         </span>
       )}

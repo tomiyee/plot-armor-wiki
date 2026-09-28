@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import {
   PointerSensor,
   KeyboardSensor,
@@ -7,7 +8,8 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
+import { sortableKeyboardCoordinates, arrayMove, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 /**
  * Standard PointerSensor + KeyboardSensor setup for sortable lists.
@@ -22,6 +24,26 @@ export function useSortableSensors() {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   );
+}
+
+/**
+ * Returns drag/drop refs and props for a single sortable item.
+ *
+ * @example
+ * const { ref, style, dragHandleProps } = useSortableItem(section.id, isPending);
+ */
+export function useSortableItem(id: number, disabled: boolean) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id, disabled });
+  return {
+    ref: setNodeRef,
+    style: {
+      transform: CSS.Translate.toString(transform),
+      transition,
+      opacity: isDragging ? 0 : 1,
+    } as CSSProperties,
+    dragHandleProps: { ...attributes, ...listeners },
+  };
 }
 
 /**

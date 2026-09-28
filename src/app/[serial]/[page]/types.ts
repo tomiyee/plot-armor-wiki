@@ -1,15 +1,16 @@
-export interface SectionData {
-  id: number;
-  name: string;
+/** A page's single merged body content at the reader's current cutoff. */
+export interface PageBodyData {
   content: string;
   /** The chapters.idx of the revision currently active at the reader's cutoff, or null if no content yet. */
   lastUpdatedChapterIdx: number | null;
 }
 
-export interface FloaterRowData {
-  id: number;
-  label: string;
+/** A page's merged infobox content + image at the reader's current cutoff. */
+export interface PageInfoboxData {
   content: string;
+  imageUrl: string | null;
+  /** The chapters.idx of the revision currently active at the reader's cutoff, or null if no content yet. */
+  lastUpdatedChapterIdx: number | null;
 }
 
 export interface ChapterData {

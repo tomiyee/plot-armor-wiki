@@ -7,8 +7,7 @@ import {
   serials,
   serialAuthors,
   pages,
-  pageSections,
-  pageSectionRevisions,
+  pageContentRevisions,
   volumes,
   chapters,
   serialAdmins,
@@ -18,10 +17,10 @@ import { parseChapterType, parseVolumeType } from "@/lib/serial-types";
 import { auth } from "@/auth";
 
 /**
- * Creates a new serial and its home page, seeding a "Description" section.
- * If the user provides description text, a first volume + chapter are
- * auto-created (e.g. "Volume 1" / "Chapter 1") so the content revision can be
- * stored immediately - section revisions require a chapter_id.
+ * Creates a new serial and its home page. If the user provides description
+ * text, a first volume + chapter are auto-created (e.g. "Volume 1" /
+ * "Chapter 1") so the initial body content revision can be stored
+ * immediately - content revisions require a chapter_id.
  *
  * @example
  * <form action={createSerial}>…</form>
@@ -97,12 +96,6 @@ export async function createSerial(formData: FormData) {
     })
     .returning({ id: pages.id });
 
-  // Seed the home page with a "Description" section.
-  const [descriptionSection] = await db
-    .insert(pageSections)
-    .values({ pageId: homePage.id, name: "Description", displayOrder: 0 })
-    .returning({ id: pageSections.id });
-
   // If description text was provided, auto-create the first volume + chapter
   // so the content revision can be stored immediately.
   if (description) {
@@ -116,9 +109,8 @@ export async function createSerial(formData: FormData) {
       .values({ volumeId: vol1.id, displayName: `${chapterType} 1`, idx: 1 })
       .returning({ id: chapters.id });
 
-    await db.insert(pageSectionRevisions).values({
+    await db.insert(pageContentRevisions).values({
       pageId: homePage.id,
-      sectionId: descriptionSection.id,
       chapterId: ch1.id,
       content: description,
     });

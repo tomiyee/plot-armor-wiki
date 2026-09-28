@@ -7,7 +7,7 @@ import { SuggestionCard } from "@/components/SuggestionCard";
 import { approveSuggestion, rejectSuggestion } from "./suggestionActions";
 
 type DiffRowProps = {
-  /** Heading shown above the two-column diff (section name or infobox label). */
+  /** Heading shown above the two-column diff ("Body" or "Infobox"). */
   label: string;
   /** Current stored markdown at the target chapter. */
   currentContent: string;
@@ -63,33 +63,9 @@ function DiffRow(props: DiffRowProps) {
   );
 }
 
-/** A proposed change to a single body section of the wiki page. */
-type SectionChange = {
-  /** Database ID of the `page_sections` row being changed. */
-  sectionId: number;
-  /** Display name of the section, shown as a diff heading. */
-  sectionName: string;
-  /** Markdown content currently stored at the target chapter. */
-  currentContent: string;
-  /** Markdown content the suggester wants to apply. */
-  proposedContent: string;
-};
-
-/** A proposed change to a single infobox field of the wiki page. */
-type InfoboxChange = {
-  /** Database ID of the `page_infobox_sections` row being changed. */
-  infoboxSectionId: number;
-  /** Human-readable label for the infobox field (e.g. "Affiliation"). */
-  infoboxSectionLabel: string;
-  /** Markdown content currently stored at the target chapter. */
-  currentContent: string;
-  /** Markdown content the suggester wants to apply. */
-  proposedContent: string;
-};
-
 /**
  * A reader-submitted edit suggestion awaiting moderator review.
- * Groups all body and infobox diffs for a single submission under one record.
+ * Carries at most one body diff and one infobox diff (either may be absent).
  */
 type PendingSuggestion = {
   /** Database ID of the suggestion row. */
@@ -104,10 +80,14 @@ type PendingSuggestion = {
   citation: string;
   /** Wall-clock timestamp of submission. */
   createdAt: Date;
-  /** One entry per body section that differs from the current version. */
-  sectionChanges: SectionChange[];
-  /** One entry per infobox field that differs from the current version. */
-  infoboxChanges: InfoboxChange[];
+  /** Markdown currently stored for the page body at the target chapter. */
+  currentContent: string;
+  /** Proposed replacement body markdown, or null when this suggestion doesn't touch the body. */
+  proposedContent: string | null;
+  /** Markdown currently stored for the infobox at the target chapter. */
+  currentInfoboxContent: string;
+  /** Proposed replacement infobox markdown, or null when this suggestion doesn't touch the infobox. */
+  proposedInfoboxContent: string | null;
 };
 
 type SuggestionReviewPanelProps = {
@@ -119,7 +99,7 @@ type SuggestionReviewPanelProps = {
 
 /**
  * Admin review panel listing pending suggestions for a wiki page.
- * Shows a before/after diff per section, citation, and approve/reject controls.
+ * Shows a before/after diff per changed field, citation, and approve/reject controls.
  * Reject opens an optional review note textarea before confirming.
  *
  * @example
@@ -162,29 +142,25 @@ export function SuggestionReviewPanel(props: SuggestionReviewPanelProps) {
             <Text className="text-sm italic">{suggestion.citation}</Text>
           </Box>
 
-          {/* Section diffs */}
-          {suggestion.sectionChanges.map((change) => (
+          {suggestion.proposedContent !== null && (
             <DiffRow
-              key={change.sectionId}
-              label={change.sectionName}
-              currentContent={change.currentContent}
-              proposedContent={change.proposedContent}
+              label="Body"
+              currentContent={suggestion.currentContent}
+              proposedContent={suggestion.proposedContent}
               minH="min-h-60px"
               serialSlug={serialSlug}
             />
-          ))}
+          )}
 
-          {/* Infobox diffs */}
-          {suggestion.infoboxChanges.map((change) => (
+          {suggestion.proposedInfoboxContent !== null && (
             <DiffRow
-              key={change.infoboxSectionId}
-              label={`Infobox: ${change.infoboxSectionLabel}`}
-              currentContent={change.currentContent}
-              proposedContent={change.proposedContent}
+              label="Infobox"
+              currentContent={suggestion.currentInfoboxContent}
+              proposedContent={suggestion.proposedInfoboxContent}
               minH="min-h-40px"
               serialSlug={serialSlug}
             />
-          ))}
+          )}
         </SuggestionCard>
       ))}
     </Box>

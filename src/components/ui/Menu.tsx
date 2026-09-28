@@ -161,7 +161,7 @@ function MenuItem(props: MenuItemProps) {
 
   const { selected, className, href, onClick, children, ...rest } = props;
   const itemClass = cn(
-    "flex items-center gap-2 w-full px-3 py-1.5 text-sm hover:bg-muted cursor-pointer",
+    "flex items-center gap-2 w-full px-3 py-1.5 text-sm font-normal hover:bg-muted cursor-pointer",
     selected ? "bg-primary/10 font-medium text-primary" : "text-foreground",
     className,
   );

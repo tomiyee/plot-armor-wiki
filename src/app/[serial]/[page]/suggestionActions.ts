@@ -1,116 +1,101 @@
 "use server";
 
 import { db } from "@/db/index";
-import {
-  pages,
-  chapters,
-  pageSections,
-  pageSectionRevisions,
-  pageSuggestions,
-  pageSuggestionSectionChanges,
-  pageSuggestionInfoboxChanges,
-  pageInfoboxSections,
-  pageInfoboxRevisions,
-  users,
-} from "@/db/schema";
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNull,
-} from "drizzle-orm";
+import { chapters, pageInfoboxContentRevisions, pageSuggestions } from "@/db/schema";
+import { and, eq, lte, max } from "drizzle-orm";
 import {
   requireAuthenticated,
   requireSerialAdminByPageId,
   isSerialAdmin,
 } from "@/lib/auth-guard";
-import { applyPageContentRevisions } from "./revisionHelpers";
+import { applyPageContentRevision, applyPageInfoboxRevision } from "./revisionHelpers";
 import {
-  sectionMaxIdxSq as buildSectionMaxIdxSq,
-  infoboxRowMaxIdxSq as buildInfoboxRowMaxIdxSq,
-  getChapterIdxById,
-} from "@/db/queries";
+  fetchSerialIdByPageId,
+  fetchMyPageSuggestions,
+  fetchPendingSuggestionCount,
+  fetchPendingSuggestions,
+  fetchTotalPendingSuggestions,
+  fetchPendingSuggestionsByPage,
+} from "@/data/suggestions/queries";
+import type { SuggestionStatus } from "@/types";
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
+/** Drizzle transaction type inferred from the db client. */
+type Tx = Parameters<Parameters<(typeof db)["transaction"]>[0]>[0];
 
 /**
- * Returns the serial id for a given page, or throws if not found.
+ * Resolves the infobox image URL active at or before `cutoffIdx`, so
+ * approving a suggestion that only proposes infobox text doesn't clobber an
+ * existing image.
  */
-async function getSerialIdByPageId(pageId: number): Promise<number> {
-  const [page] = await db
-    .select({ serialId: pages.serialId })
-    .from(pages)
-    .where(eq(pages.id, pageId))
-    .limit(1);
-  if (!page) throw new Error("Page not found.");
-  return page.serialId;
+async function resolveCurrentInfoboxImageUrl(
+  tx: Tx,
+  pageId: number,
+  cutoffIdx: number,
+): Promise<string | null> {
+  const maxIdxSq = tx
+    .select({ maxIdx: max(chapters.idx).as("max_idx") })
+    .from(pageInfoboxContentRevisions)
+    .innerJoin(chapters, eq(pageInfoboxContentRevisions.chapterId, chapters.id))
+    .where(
+      and(
+        eq(pageInfoboxContentRevisions.pageId, pageId),
+        lte(chapters.idx, cutoffIdx),
+      ),
+    )
+    .as("current_ib_image_max_idx_sq");
+
+  const [row] = await tx
+    .select({ imageUrl: pageInfoboxContentRevisions.imageUrl })
+    .from(pageInfoboxContentRevisions)
+    .innerJoin(chapters, eq(pageInfoboxContentRevisions.chapterId, chapters.id))
+    .innerJoin(maxIdxSq, eq(chapters.idx, maxIdxSq.maxIdx))
+    .where(eq(pageInfoboxContentRevisions.pageId, pageId));
+
+  return row?.imageUrl ?? null;
 }
 
 // ── User-facing actions ───────────────────────────────────────────────────────
 
 /**
- * Submits a suggestion to change one or more sections or infobox rows on a wiki page.
+ * Submits a suggestion to change a wiki page's body and/or infobox content.
  * Requires the caller to be authenticated but NOT an admin - admins use
  * `savePageContent` directly.
  *
  * @example
- * await submitPageSuggestion(42, 7, "Quote from ch. 5",
- *   [{ sectionId: 1, proposedContent: "..." }],
- *   [{ infoboxSectionId: 3, proposedContent: "19" }],
- * );
+ * await submitPageSuggestion(42, 7, "Quote from ch. 5", "New body...", "**Age:** 20");
  */
 export async function submitPageSuggestion(
   pageId: number,
   targetChapterId: number,
   citation: string,
-  sectionChanges: { sectionId: number; proposedContent: string }[],
-  infoboxChanges: { infoboxSectionId: number; proposedContent: string }[] = [],
+  proposedContent: string | null,
+  proposedInfoboxContent: string | null = null,
 ): Promise<{ error?: string }> {
   const userId = await requireAuthenticated();
 
   if (!citation.trim()) return { error: "Citation is required." };
-  if (sectionChanges.length === 0 && infoboxChanges.length === 0) {
-    return { error: "At least one section change is required." };
+  if (!proposedContent?.trim() && !proposedInfoboxContent?.trim()) {
+    return { error: "At least one change is required." };
   }
 
   // Admins should use savePageContent directly.
-  const serialId = await getSerialIdByPageId(pageId);
+  const serialId = await fetchSerialIdByPageId(pageId);
   const isAdmin = await isSerialAdmin(serialId);
   if (isAdmin)
     return {
       error: "Admins should use the edit mode to save content directly.",
     };
 
-  await db.transaction(async (tx) => {
-    const [suggestion] = await tx
-      .insert(pageSuggestions)
-      .values({
-        pageId,
-        proposedByUserId: userId,
-        targetChapterId,
-        citation: citation.trim(),
-        status: "pending",
-      })
-      .returning({ id: pageSuggestions.id });
-
-    for (const change of sectionChanges) {
-      await tx.insert(pageSuggestionSectionChanges).values({
-        suggestionId: suggestion.id,
-        sectionId: change.sectionId,
-        proposedContent: change.proposedContent,
-      });
-    }
-
-    for (const change of infoboxChanges) {
-      await tx.insert(pageSuggestionInfoboxChanges).values({
-        suggestionId: suggestion.id,
-        infoboxSectionId: change.infoboxSectionId,
-        proposedContent: change.proposedContent,
-      });
-    }
+  await db.insert(pageSuggestions).values({
+    pageId,
+    proposedByUserId: userId,
+    targetChapterId,
+    citation: citation.trim(),
+    status: "pending",
+    proposedContent: proposedContent?.trim() ? proposedContent : null,
+    proposedInfoboxContent: proposedInfoboxContent?.trim()
+      ? proposedInfoboxContent
+      : null,
   });
 
   return {};
@@ -127,85 +112,17 @@ export async function submitPageSuggestion(
 export async function getMyPageSuggestions(pageId: number): Promise<
   {
     id: number;
-    status: "pending" | "approved" | "rejected";
+    status: SuggestionStatus;
     reviewNote: string | null;
     createdAt: Date;
     targetChapterName: string;
-    sectionChanges: { sectionName: string; proposedContent: string }[];
-    infoboxChanges: { label: string; proposedContent: string }[];
+    proposedContent: string | null;
+    proposedInfoboxContent: string | null;
   }[]
 > {
   const userId = await requireAuthenticated().catch(() => null);
   if (!userId) return [];
-
-  const rows = await db
-    .select({
-      id: pageSuggestions.id,
-      status: pageSuggestions.status,
-      reviewNote: pageSuggestions.reviewNote,
-      createdAt: pageSuggestions.createdAt,
-      targetChapterName: chapters.displayName,
-    })
-    .from(pageSuggestions)
-    .innerJoin(chapters, eq(pageSuggestions.targetChapterId, chapters.id))
-    .where(
-      and(
-        eq(pageSuggestions.pageId, pageId),
-        eq(pageSuggestions.proposedByUserId, userId),
-      ),
-    )
-    .orderBy(desc(pageSuggestions.createdAt));
-
-  if (rows.length === 0) return [];
-
-  const suggestionIds = rows.map((r) => r.id);
-
-  const [sectionChangeRows, infoboxChangeRows] = await Promise.all([
-    db
-      .select({
-        suggestionId: pageSuggestionSectionChanges.suggestionId,
-        sectionName: pageSections.name,
-        proposedContent: pageSuggestionSectionChanges.proposedContent,
-      })
-      .from(pageSuggestionSectionChanges)
-      .innerJoin(
-        pageSections,
-        eq(pageSuggestionSectionChanges.sectionId, pageSections.id),
-      )
-      .where(inArray(pageSuggestionSectionChanges.suggestionId, suggestionIds)),
-    db
-      .select({
-        suggestionId: pageSuggestionInfoboxChanges.suggestionId,
-        label: pageInfoboxSections.label,
-        proposedContent: pageSuggestionInfoboxChanges.proposedContent,
-      })
-      .from(pageSuggestionInfoboxChanges)
-      .innerJoin(
-        pageInfoboxSections,
-        eq(
-          pageSuggestionInfoboxChanges.infoboxSectionId,
-          pageInfoboxSections.id,
-        ),
-      )
-      .where(inArray(pageSuggestionInfoboxChanges.suggestionId, suggestionIds)),
-  ]);
-
-  return rows.map((row) => ({
-    id: row.id,
-    status: row.status as "pending" | "approved" | "rejected",
-    reviewNote: row.reviewNote,
-    createdAt: row.createdAt,
-    targetChapterName: row.targetChapterName,
-    sectionChanges: sectionChangeRows
-      .filter((c) => c.suggestionId === row.id)
-      .map((c) => ({
-        sectionName: c.sectionName,
-        proposedContent: c.proposedContent,
-      })),
-    infoboxChanges: infoboxChangeRows
-      .filter((c) => c.suggestionId === row.id)
-      .map((c) => ({ label: c.label, proposedContent: c.proposedContent })),
-  }));
+  return fetchMyPageSuggestions(pageId, userId);
 }
 
 // ── Admin-facing actions ──────────────────────────────────────────────────────
@@ -220,27 +137,16 @@ export async function getMyPageSuggestions(pageId: number): Promise<
 export async function getPendingSuggestionCount(
   pageId: number,
 ): Promise<number> {
-  const serialId = await getSerialIdByPageId(pageId);
+  const serialId = await fetchSerialIdByPageId(pageId);
   const isAdmin = await isSerialAdmin(serialId);
   if (!isAdmin) return 0;
-
-  const [{ cnt }] = await db
-    .select({ cnt: count() })
-    .from(pageSuggestions)
-    .where(
-      and(
-        eq(pageSuggestions.pageId, pageId),
-        eq(pageSuggestions.status, "pending"),
-      ),
-    );
-
-  return Number(cnt);
+  return fetchPendingSuggestionCount(pageId);
 }
 
 /**
- * Returns all pending suggestions for a page, with proposer username,
- * per-section proposed changes, and per-infobox-row proposed changes.
- * Admin-only - returns empty array otherwise.
+ * Returns all pending suggestions for a page, with proposer username and the
+ * proposed vs. current body/infobox content. Admin-only - returns empty
+ * array otherwise.
  *
  * @example
  * const suggestions = await getPendingSuggestions(42);
@@ -253,192 +159,23 @@ export async function getPendingSuggestions(pageId: number): Promise<
     targetChapterName: string;
     citation: string;
     createdAt: Date;
-    sectionChanges: {
-      sectionId: number;
-      sectionName: string;
-      currentContent: string;
-      proposedContent: string;
-    }[];
-    infoboxChanges: {
-      infoboxSectionId: number;
-      infoboxSectionLabel: string;
-      currentContent: string;
-      proposedContent: string;
-    }[];
+    currentContent: string;
+    proposedContent: string | null;
+    currentInfoboxContent: string;
+    proposedInfoboxContent: string | null;
   }[]
 > {
-  const serialId = await getSerialIdByPageId(pageId);
+  const serialId = await fetchSerialIdByPageId(pageId);
   const isAdmin = await isSerialAdmin(serialId);
   if (!isAdmin) return [];
-
-  const suggestionRows = await db
-    .select({
-      id: pageSuggestions.id,
-      proposerUsername: users.username,
-      targetChapterId: pageSuggestions.targetChapterId,
-      targetChapterName: chapters.displayName,
-      targetChapterIdx: chapters.idx,
-      citation: pageSuggestions.citation,
-      createdAt: pageSuggestions.createdAt,
-    })
-    .from(pageSuggestions)
-    .innerJoin(users, eq(pageSuggestions.proposedByUserId, users.id))
-    .innerJoin(chapters, eq(pageSuggestions.targetChapterId, chapters.id))
-    .where(
-      and(
-        eq(pageSuggestions.pageId, pageId),
-        eq(pageSuggestions.status, "pending"),
-      ),
-    )
-    .orderBy(asc(pageSuggestions.createdAt));
-
-  if (suggestionRows.length === 0) return [];
-
-  const suggestionIds = suggestionRows.map((s) => s.id);
-
-  // Fetch all section changes and infobox changes for these suggestions in parallel.
-  const [changeRows, infoboxChangeRows] = await Promise.all([
-    db
-      .select({
-        suggestionId: pageSuggestionSectionChanges.suggestionId,
-        sectionId: pageSuggestionSectionChanges.sectionId,
-        sectionName: pageSections.name,
-        proposedContent: pageSuggestionSectionChanges.proposedContent,
-      })
-      .from(pageSuggestionSectionChanges)
-      .innerJoin(
-        pageSections,
-        eq(pageSuggestionSectionChanges.sectionId, pageSections.id),
-      )
-      .where(inArray(pageSuggestionSectionChanges.suggestionId, suggestionIds)),
-    db
-      .select({
-        suggestionId: pageSuggestionInfoboxChanges.suggestionId,
-        infoboxSectionId: pageSuggestionInfoboxChanges.infoboxSectionId,
-        infoboxSectionLabel: pageInfoboxSections.label,
-        proposedContent: pageSuggestionInfoboxChanges.proposedContent,
-      })
-      .from(pageSuggestionInfoboxChanges)
-      .innerJoin(
-        pageInfoboxSections,
-        eq(
-          pageSuggestionInfoboxChanges.infoboxSectionId,
-          pageInfoboxSections.id,
-        ),
-      )
-      .where(inArray(pageSuggestionInfoboxChanges.suggestionId, suggestionIds)),
-  ]);
-
-  // For current content: fetch the latest revision at each suggestion's target chapter idx.
-  // We resolve this per-suggestion using the max-idx pattern.
-  const suggestionWithChanges = await Promise.all(
-    suggestionRows.map(async (suggestion) => {
-      const cutoffIdx = suggestion.targetChapterIdx;
-
-      const changes = changeRows.filter(
-        (c) => c.suggestionId === suggestion.id,
-      );
-      const ibChanges = infoboxChangeRows.filter(
-        (c) => c.suggestionId === suggestion.id,
-      );
-      const sectionIds = changes.map((c) => c.sectionId);
-      const ibSectionIds = ibChanges.map((c) => c.infoboxSectionId);
-
-      const [currentContentBySectionId, currentContentByInfoboxSectionId] =
-        await Promise.all([
-          (async () => {
-            const m = new Map<number, string>();
-            if (sectionIds.length === 0) return m;
-            const secMaxIdxSq = buildSectionMaxIdxSq(pageId, cutoffIdx);
-            const currentRevisions = await db
-              .select({
-                sectionId: pageSectionRevisions.sectionId,
-                content: pageSectionRevisions.content,
-              })
-              .from(pageSectionRevisions)
-              .innerJoin(
-                chapters,
-                eq(pageSectionRevisions.chapterId, chapters.id),
-              )
-              .innerJoin(
-                secMaxIdxSq,
-                and(
-                  eq(pageSectionRevisions.sectionId, secMaxIdxSq.sectionId),
-                  eq(chapters.idx, secMaxIdxSq.maxIdx),
-                ),
-              )
-              .where(eq(pageSectionRevisions.pageId, pageId));
-
-            currentRevisions.forEach((r) =>
-              m.set(r.sectionId, r.content ?? ""),
-            );
-            return m;
-          })(),
-          (async () => {
-            const m = new Map<number, string>();
-            if (ibSectionIds.length === 0) return m;
-            const ibMaxIdxSq = buildInfoboxRowMaxIdxSq(pageId, cutoffIdx);
-            const currentRevisions = await db
-              .select({
-                infoboxSectionId: pageInfoboxRevisions.infoboxSectionId,
-                content: pageInfoboxRevisions.content,
-              })
-              .from(pageInfoboxRevisions)
-              .innerJoin(
-                chapters,
-                eq(pageInfoboxRevisions.chapterId, chapters.id),
-              )
-              .innerJoin(
-                ibMaxIdxSq,
-                and(
-                  eq(
-                    pageInfoboxRevisions.infoboxSectionId,
-                    ibMaxIdxSq.infoboxSectionId,
-                  ),
-                  eq(chapters.idx, ibMaxIdxSq.maxIdx),
-                ),
-              )
-              .where(eq(pageInfoboxRevisions.pageId, pageId));
-
-            currentRevisions.forEach((r) =>
-              m.set(r.infoboxSectionId, r.content ?? ""),
-            );
-            return m;
-          })(),
-        ]);
-
-      return {
-        id: suggestion.id,
-        proposerUsername: suggestion.proposerUsername,
-        targetChapterId: suggestion.targetChapterId,
-        targetChapterName: suggestion.targetChapterName,
-        citation: suggestion.citation,
-        createdAt: suggestion.createdAt,
-        sectionChanges: changes.map((c) => ({
-          sectionId: c.sectionId,
-          sectionName: c.sectionName,
-          currentContent: currentContentBySectionId.get(c.sectionId) ?? "",
-          proposedContent: c.proposedContent,
-        })),
-        infoboxChanges: ibChanges.map((c) => ({
-          infoboxSectionId: c.infoboxSectionId,
-          infoboxSectionLabel: c.infoboxSectionLabel,
-          currentContent:
-            currentContentByInfoboxSectionId.get(c.infoboxSectionId) ?? "",
-          proposedContent: c.proposedContent,
-        })),
-      };
-    }),
-  );
-
-  return suggestionWithChanges;
+  return fetchPendingSuggestions(pageId);
 }
 
 /**
- * Approves a pending suggestion: writes each proposed section change into
- * page_section_revisions at the suggestion's target chapter (same upsert
- * path as savePageContent), then marks the suggestion as approved.
- * Requires admin access to the page's serial.
+ * Approves a pending suggestion: writes the proposed body/infobox content
+ * into page_content_revisions / page_infobox_content_revisions at the
+ * suggestion's target chapter (same upsert path as savePageContent), then
+ * marks the suggestion as approved. Requires admin access to the page's serial.
  *
  * @example
  * await approveSuggestion(5, "Looks accurate - verified against ch. 5 text.");
@@ -453,6 +190,8 @@ export async function approveSuggestion(
       pageId: pageSuggestions.pageId,
       targetChapterId: pageSuggestions.targetChapterId,
       status: pageSuggestions.status,
+      proposedContent: pageSuggestions.proposedContent,
+      proposedInfoboxContent: pageSuggestions.proposedInfoboxContent,
     })
     .from(pageSuggestions)
     .where(eq(pageSuggestions.id, suggestionId))
@@ -464,25 +203,7 @@ export async function approveSuggestion(
 
   const adminUserId = await requireSerialAdminByPageId(suggestion.pageId);
 
-  const [changes, ibChanges] = await Promise.all([
-    db
-      .select({
-        sectionId: pageSuggestionSectionChanges.sectionId,
-        proposedContent: pageSuggestionSectionChanges.proposedContent,
-      })
-      .from(pageSuggestionSectionChanges)
-      .where(eq(pageSuggestionSectionChanges.suggestionId, suggestionId)),
-    db
-      .select({
-        infoboxSectionId: pageSuggestionInfoboxChanges.infoboxSectionId,
-        proposedContent: pageSuggestionInfoboxChanges.proposedContent,
-      })
-      .from(pageSuggestionInfoboxChanges)
-      .where(eq(pageSuggestionInfoboxChanges.suggestionId, suggestionId)),
-  ]);
-
   await db.transaction(async (tx) => {
-    // Resolve the idx of the target chapter for the previous-revision invariant check.
     const [targetChapterRow] = await tx
       .select({ idx: chapters.idx })
       .from(chapters)
@@ -490,22 +211,35 @@ export async function approveSuggestion(
       .limit(1);
     const targetIdx = targetChapterRow?.idx ?? 0;
 
-    const sectionChanges = Object.fromEntries(
-      changes.map((c) => [c.sectionId, c.proposedContent]),
-    );
-    const infoboxChanges = Object.fromEntries(
-      ibChanges.map((c) => [c.infoboxSectionId, c.proposedContent]),
-    );
-    await applyPageContentRevisions(
-      tx,
-      suggestion.pageId,
-      suggestion.targetChapterId,
-      targetIdx,
-      sectionChanges,
-      infoboxChanges,
-    );
+    if (suggestion.proposedContent !== null) {
+      await applyPageContentRevision(
+        tx,
+        suggestion.pageId,
+        suggestion.targetChapterId,
+        targetIdx,
+        suggestion.proposedContent,
+      );
+    }
 
-    // Mark the suggestion as approved.
+    if (suggestion.proposedInfoboxContent !== null) {
+      // A suggestion never proposes an image change - resolve whatever image
+      // URL is currently active at the target chapter and carry it forward
+      // unchanged alongside the suggested infobox text.
+      const currentImageUrl = await resolveCurrentInfoboxImageUrl(
+        tx,
+        suggestion.pageId,
+        targetIdx,
+      );
+      await applyPageInfoboxRevision(
+        tx,
+        suggestion.pageId,
+        suggestion.targetChapterId,
+        targetIdx,
+        suggestion.proposedInfoboxContent,
+        currentImageUrl,
+      );
+    }
+
     await tx
       .update(pageSuggestions)
       .set({
@@ -573,16 +307,7 @@ export async function getTotalPendingSuggestions(
 ): Promise<number> {
   const isAdmin = await isSerialAdmin(serialId);
   if (!isAdmin) return 0;
-
-  const [{ cnt }] = await db
-    .select({ cnt: count() })
-    .from(pageSuggestions)
-    .innerJoin(pages, eq(pageSuggestions.pageId, pages.id))
-    .where(
-      and(eq(pages.serialId, serialId), eq(pageSuggestions.status, "pending")),
-    );
-
-  return Number(cnt);
+  return fetchTotalPendingSuggestions(serialId);
 }
 
 /**
@@ -599,138 +324,5 @@ export async function getPendingSuggestionsByPage(
 > {
   const isAdmin = await isSerialAdmin(serialId);
   if (!isAdmin) return [];
-
-  const rows = await db
-    .select({
-      pageId: pages.id,
-      pageSlug: pages.slug,
-      pageName: pages.name,
-      cnt: count(),
-    })
-    .from(pageSuggestions)
-    .innerJoin(pages, eq(pageSuggestions.pageId, pages.id))
-    .where(
-      and(eq(pages.serialId, serialId), eq(pageSuggestions.status, "pending")),
-    )
-    .groupBy(pages.id, pages.slug, pages.name)
-    .orderBy(desc(count()), asc(pages.name));
-
-  return rows.map((r) => ({ ...r, count: Number(r.cnt) }));
-}
-
-// ── Section content helper (for suggestion form pre-fill) ─────────────────────
-
-/**
- * Resolves the active sections and infobox rows with their current content at a
- * given chapter cutoff, for pre-filling the suggestion form. Does not require
- * auth - any authenticated user can read existing section content.
- *
- * @example
- * const { sections, infoboxSections } = await getSectionsAtChapter(42, chapterId);
- */
-export async function getSectionsAtChapter(
-  pageId: number,
-  chapterId: number,
-): Promise<{
-  sections: {
-    id: number;
-    name: string;
-    content: string;
-    lastUpdatedChapterIdx: number | null;
-  }[];
-  infoboxSections: { id: number; label: string; content: string }[];
-}> {
-  const cutoffIdxResult = await getChapterIdxById(chapterId);
-
-  if (cutoffIdxResult === null) throw new Error("Chapter not found");
-  const cutoffIdx = cutoffIdxResult;
-
-  const sectionMaxIdxSq = buildSectionMaxIdxSq(pageId, cutoffIdx);
-  const ibMaxIdxSq = buildInfoboxRowMaxIdxSq(pageId, cutoffIdx);
-
-  const [activeSections, sectionVersions, activeInfoboxSections, ibVersions] =
-    await Promise.all([
-      db
-        .select({ id: pageSections.id, name: pageSections.name })
-        .from(pageSections)
-        .where(
-          and(eq(pageSections.pageId, pageId), isNull(pageSections.deletedAt)),
-        )
-        .orderBy(asc(pageSections.displayOrder)),
-      db
-        .select({
-          sectionId: pageSectionRevisions.sectionId,
-          content: pageSectionRevisions.content,
-          lastUpdatedChapterIdx: sectionMaxIdxSq.maxIdx,
-        })
-        .from(pageSectionRevisions)
-        .innerJoin(chapters, eq(pageSectionRevisions.chapterId, chapters.id))
-        .innerJoin(
-          sectionMaxIdxSq,
-          and(
-            eq(pageSectionRevisions.sectionId, sectionMaxIdxSq.sectionId),
-            eq(chapters.idx, sectionMaxIdxSq.maxIdx),
-          ),
-        )
-        .where(eq(pageSectionRevisions.pageId, pageId)),
-      db
-        .select({
-          id: pageInfoboxSections.id,
-          label: pageInfoboxSections.label,
-        })
-        .from(pageInfoboxSections)
-        .where(
-          and(
-            eq(pageInfoboxSections.pageId, pageId),
-            isNull(pageInfoboxSections.deletedAt),
-          ),
-        )
-        .orderBy(asc(pageInfoboxSections.displayOrder)),
-      db
-        .select({
-          infoboxSectionId: pageInfoboxRevisions.infoboxSectionId,
-          content: pageInfoboxRevisions.content,
-        })
-        .from(pageInfoboxRevisions)
-        .innerJoin(chapters, eq(pageInfoboxRevisions.chapterId, chapters.id))
-        .innerJoin(
-          ibMaxIdxSq,
-          and(
-            eq(
-              pageInfoboxRevisions.infoboxSectionId,
-              ibMaxIdxSq.infoboxSectionId,
-            ),
-            eq(chapters.idx, ibMaxIdxSq.maxIdx),
-          ),
-        )
-        .where(eq(pageInfoboxRevisions.pageId, pageId)),
-    ]);
-
-  const versionBySectionId = new Map(
-    sectionVersions.map((v) => [
-      v.sectionId,
-      {
-        content: v.content ?? "",
-        lastUpdatedChapterIdx: v.lastUpdatedChapterIdx ?? null,
-      },
-    ]),
-  );
-  const ibContentById = new Map(
-    ibVersions.map((v) => [v.infoboxSectionId, v.content ?? ""]),
-  );
-
-  return {
-    sections: activeSections.map((s) => ({
-      id: s.id,
-      name: s.name,
-      content: versionBySectionId.get(s.id)?.content ?? "",
-      lastUpdatedChapterIdx:
-        versionBySectionId.get(s.id)?.lastUpdatedChapterIdx ?? null,
-    })),
-    infoboxSections: activeInfoboxSections.map((s) => ({
-      id: s.id,
-      label: s.label,
-      content: ibContentById.get(s.id) ?? "",
-    })),
-  };
+  return fetchPendingSuggestionsByPage(serialId);
 }

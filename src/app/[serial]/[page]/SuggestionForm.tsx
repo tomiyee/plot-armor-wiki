@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useServerAction } from "@/hooks/useServerAction";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { Box } from "@/components/ui/Box";
@@ -17,10 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/Dialog";
-import {
-  submitPageSuggestion,
-  getSectionsAtChapter,
-} from "./suggestionActions";
+import { submitPageSuggestion } from "./suggestionActions";
+import { getContentAtChapter } from "./actions";
 import { InfoIcon } from "@/components/ui/InfoIcon";
 import { LastUpdatedTag } from "./LastUpdatedTag";
 import type { ChapterData, ChapterGroupOption } from "./types";
@@ -49,23 +47,22 @@ type SuggestionFormProps = {
   chapterType?: string;
   /** Slug of the parent serial, used to resolve wiki links. */
   serialSlug: string;
-  /** Pre-loaded sections at the reader's current cutoff (avoids an extra round-trip). */
-  initialSections: {
-    id: number;
-    name: string;
-    content: string;
-    lastUpdatedChapterIdx: number | null;
-  }[];
-  /** Pre-loaded infobox rows at the reader's current cutoff. Empty when page has no infobox. */
-  initialInfoboxSections: { id: number; label: string; content: string }[];
+  /** Pre-loaded body content at the reader's current cutoff (avoids an extra round-trip). */
+  initialContent: string;
+  /** Chapter idx the pre-loaded body content was last updated at. */
+  initialContentLastUpdatedChapterIdx: number | null;
+  /** Pre-loaded infobox content at the reader's current cutoff. Empty string when the page has no infobox content. */
+  initialInfoboxContent: string;
+  /** Chapter idx the pre-loaded infobox content was last updated at. */
+  initialInfoboxLastUpdatedChapterIdx: number | null;
   /** Called when the user cancels or dismisses the post-submit confirmation dialog. */
   onClose: () => void;
 };
 
 /**
  * Inline suggestion form shown to authenticated non-admin users inside PageReadView.
- * Allows proposing section content changes with a single citation field.
- * Fetches section content at the chosen target chapter when the chapter selector changes.
+ * Allows proposing a body and/or infobox content change with a single citation field.
+ * Fetches content at the chosen target chapter when the chapter selector changes.
  * Only chapters up to the user's reading progress are shown to prevent spoilers.
  *
  * @example
@@ -75,8 +72,10 @@ type SuggestionFormProps = {
  *   readingChapterId={7}
  *   wikiPages={[{ name: "Luffy", slug: "luffy" }]}
  *   serialSlug="one-piece"
- *   initialSections={[{ id: 1, name: "Summary", content: "..." }]}
- *   initialInfoboxSections={[{ id: 3, label: "Age", content: "19" }]}
+ *   initialContent="..."
+ *   initialContentLastUpdatedChapterIdx={1}
+ *   initialInfoboxContent="**Age:** 19"
+ *   initialInfoboxLastUpdatedChapterIdx={1}
  *   onClose={() => setShowForm(false)}
  * />
  */
@@ -89,13 +88,16 @@ export function SuggestionForm(props: SuggestionFormProps) {
     wikiChapters,
     chapterType,
     serialSlug,
-    initialSections,
-    initialInfoboxSections,
+    initialContent,
+    initialContentLastUpdatedChapterIdx,
+    initialInfoboxContent,
+    initialInfoboxLastUpdatedChapterIdx,
     onClose,
   } = props;
 
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const { runAsync, isPending: isSubmitPending } = useServerAction();
+  const [isFetchPending, startTransition] = useTransition();
+  const isPending = isFetchPending || isSubmitPending;
 
   // Restrict available chapters to those at or before the user's reading cutoff.
   const readingChapterIdx =
@@ -112,16 +114,19 @@ export function SuggestionForm(props: SuggestionFormProps) {
   );
   const selectedChapterIdx =
     availableChapters.find((c) => c.id === selectedChapterId)?.idx ?? null;
-  const [sections, setSections] = useState(initialSections);
-  const [infoboxSections, setInfoboxSections] = useState(
-    initialInfoboxSections,
+
+  const [content, setContent] = useState(initialContent);
+  const [contentLastUpdatedIdx, setContentLastUpdatedIdx] = useState(
+    initialContentLastUpdatedChapterIdx,
   );
-  const [draftContent, setDraftContent] = useState<Record<number, string>>(
-    Object.fromEntries(initialSections.map((s) => [s.id, s.content])),
+  const [infoboxContent, setInfoboxContent] = useState(initialInfoboxContent);
+  const [infoboxLastUpdatedIdx, setInfoboxLastUpdatedIdx] = useState(
+    initialInfoboxLastUpdatedChapterIdx,
   );
-  const [infoboxDraftContent, setInfoboxDraftContent] = useState<
-    Record<number, string>
-  >(Object.fromEntries(initialInfoboxSections.map((s) => [s.id, s.content])));
+  const [draftContent, setDraftContent] = useState(initialContent);
+  const [draftInfoboxContent, setDraftInfoboxContent] = useState(
+    initialInfoboxContent,
+  );
   const [citation, setCitation] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -131,11 +136,11 @@ export function SuggestionForm(props: SuggestionFormProps) {
   // (diffSourcePlugin captures diffMarkdown once at init; remount is the only reset path.)
   const [contentChapterId, setContentChapterId] = useState(selectedChapterId);
 
-  // Dirty state: true when any draft differs from the section content or citation is non-empty.
+  // Dirty state: true when any draft differs from the saved content or citation is non-empty.
   const isDirty =
     citation.trim().length > 0 ||
-    sections.some((s) => draftContent[s.id] !== s.content) ||
-    infoboxSections.some((s) => infoboxDraftContent[s.id] !== s.content);
+    draftContent !== content ||
+    draftInfoboxContent !== infoboxContent;
 
   // Warn before navigating away with a started draft.
   useEffect(() => {
@@ -153,16 +158,13 @@ export function SuggestionForm(props: SuggestionFormProps) {
     (chapterId: number) => {
       setSelectedChapterId(chapterId);
       startTransition(async () => {
-        const { sections: newSections, infoboxSections: newIbSections } =
-          await getSectionsAtChapter(pageId, chapterId);
-        setSections(newSections);
-        setDraftContent(
-          Object.fromEntries(newSections.map((s) => [s.id, s.content])),
-        );
-        setInfoboxSections(newIbSections);
-        setInfoboxDraftContent(
-          Object.fromEntries(newIbSections.map((s) => [s.id, s.content])),
-        );
+        const data = await getContentAtChapter(pageId, chapterId);
+        setContent(data.content);
+        setContentLastUpdatedIdx(data.lastUpdatedChapterIdx);
+        setDraftContent(data.content);
+        setInfoboxContent(data.infoboxContent);
+        setInfoboxLastUpdatedIdx(data.infoboxLastUpdatedChapterIdx);
+        setDraftInfoboxContent(data.infoboxContent);
         setContentChapterId(chapterId);
       });
     },
@@ -178,50 +180,38 @@ export function SuggestionForm(props: SuggestionFormProps) {
       setSubmitError("Citation is required.");
       return;
     }
-    const changes = sections
-      .filter(
-        (s) => draftContent[s.id] !== s.content && draftContent[s.id]?.trim(),
-      )
-      .map((s) => ({ sectionId: s.id, proposedContent: draftContent[s.id] }));
-    const infoboxChanges = infoboxSections
-      .filter(
-        (s) =>
-          infoboxDraftContent[s.id] !== s.content &&
-          infoboxDraftContent[s.id]?.trim(),
-      )
-      .map((s) => ({
-        infoboxSectionId: s.id,
-        proposedContent: infoboxDraftContent[s.id],
-      }));
-    if (changes.length === 0 && infoboxChanges.length === 0) {
+    const proposedContent =
+      draftContent !== content && draftContent.trim() ? draftContent : null;
+    const proposedInfoboxContent =
+      draftInfoboxContent !== infoboxContent && draftInfoboxContent.trim()
+        ? draftInfoboxContent
+        : null;
+    if (proposedContent === null && proposedInfoboxContent === null) {
       setSubmitError("Make at least one change before submitting.");
       return;
     }
     setSubmitError(null);
-    startTransition(async () => {
-      const result = await submitPageSuggestion(
-        pageId,
-        selectedChapterId,
-        citation,
-        changes,
-        infoboxChanges,
-      );
-      if (result.error) {
-        setSubmitError(result.error);
-      } else {
-        router.refresh();
-        setShowSuccessDialog(true);
-      }
-    });
+    runAsync(
+      () =>
+        submitPageSuggestion(
+          pageId,
+          selectedChapterId,
+          citation,
+          proposedContent,
+          proposedInfoboxContent,
+        ),
+      () => setShowSuccessDialog(true),
+      (err) => setSubmitError(err),
+    );
   }, [
+    runAsync,
     selectedChapterId,
     citation,
-    sections,
-    infoboxSections,
+    content,
+    infoboxContent,
     draftContent,
-    infoboxDraftContent,
+    draftInfoboxContent,
     pageId,
-    router,
   ]);
 
   // Build chapter selector options from filtered available chapters only.
@@ -312,65 +302,49 @@ export function SuggestionForm(props: SuggestionFormProps) {
           </Box>
         )}
 
-        {/* Section editors */}
-        {sections.map((section, i) => (
-          <Box col key={section.id} className="gap-2">
-            <Box className="items-center gap-2">
-              {i > 0 && <Text variant="h3">{section.name}</Text>}
-              {i === 0 && (
-                <InfoIcon contents="This section will appear in preview tooltips when this page is mentioned elsewhere." />
-              )}
-              <LastUpdatedTag
-                lastUpdatedIdx={section.lastUpdatedChapterIdx}
-                selectedChapterIdx={selectedChapterIdx}
-              />
-            </Box>
-            <WikiLinkMDEditor
-              key={`${contentChapterId}-${section.id}`}
-              value={draftContent[section.id] ?? ""}
-              onChange={(val) =>
-                setDraftContent((prev) => ({
-                  ...prev,
-                  [section.id]: val ?? "",
-                }))
-              }
-              height={260}
-              preview="edit"
-              wikiPages={wikiPages}
-              serialSlug={serialSlug}
-              wikiChapters={wikiChapters}
-              chapterType={chapterType}
+        {/* Body editor */}
+        <Box col className="gap-2">
+          <Box className="items-center gap-2">
+            <InfoIcon contents="This content will appear in preview tooltips when this page is mentioned elsewhere." />
+            <LastUpdatedTag
+              lastUpdatedIdx={contentLastUpdatedIdx}
+              selectedChapterIdx={selectedChapterIdx}
             />
           </Box>
-        ))}
+          <WikiLinkMDEditor
+            key={`${contentChapterId}-body`}
+            value={draftContent}
+            onChange={(val) => setDraftContent(val ?? "")}
+            height={260}
+            preview="edit"
+            wikiPages={wikiPages}
+            serialSlug={serialSlug}
+            wikiChapters={wikiChapters}
+            chapterType={chapterType}
+          />
+        </Box>
 
-        {/* Infobox row editors */}
-        {infoboxSections.length > 0 && (
-          <Box col className="gap-4">
+        {/* Infobox editor */}
+        <Box col className="gap-2">
+          <Box className="items-center gap-2">
             <Text variant="h3">Infobox</Text>
-            {infoboxSections.map((row) => (
-              <Box col key={row.id} className="gap-1.5">
-                <Label>{row.label}</Label>
-                <WikiLinkMDEditor
-                  key={`${contentChapterId}-ib-${row.id}`}
-                  value={infoboxDraftContent[row.id] ?? ""}
-                  onChange={(val) =>
-                    setInfoboxDraftContent((prev) => ({
-                      ...prev,
-                      [row.id]: val ?? "",
-                    }))
-                  }
-                  height={120}
-                  preview="edit"
-                  wikiPages={wikiPages}
-                  serialSlug={serialSlug}
-                  wikiChapters={wikiChapters}
-                  chapterType={chapterType}
-                />
-              </Box>
-            ))}
+            <LastUpdatedTag
+              lastUpdatedIdx={infoboxLastUpdatedIdx}
+              selectedChapterIdx={selectedChapterIdx}
+            />
           </Box>
-        )}
+          <WikiLinkMDEditor
+            key={`${contentChapterId}-infobox`}
+            value={draftInfoboxContent}
+            onChange={(val) => setDraftInfoboxContent(val ?? "")}
+            height={120}
+            preview="edit"
+            wikiPages={wikiPages}
+            serialSlug={serialSlug}
+            wikiChapters={wikiChapters}
+            chapterType={chapterType}
+          />
+        </Box>
 
         {/* Citation */}
         <Box col className="gap-2">

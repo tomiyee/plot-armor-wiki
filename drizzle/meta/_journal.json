@@ -22,6 +22,34 @@
       "when": 1779693894249,
       "tag": "0002_charming_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781381810530,
+      "tag": "0003_sharp_ultragirl",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781383145584,
+      "tag": "0004_nervous_virginia_dare",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785017260889,
+      "tag": "0005_add_single_content_page_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785018670171,
+      "tag": "0006_drop_legacy_per_section_tables",
+      "breakpoints": true
     }
   ]
 }

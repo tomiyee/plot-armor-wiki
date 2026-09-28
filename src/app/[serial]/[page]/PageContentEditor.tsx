@@ -8,14 +8,16 @@ import { WikiLinkMDEditor } from "@/components/MDEditor/index";
 import { InfoIcon } from "@/components/ui/InfoIcon";
 import { LastUpdatedTag } from "./LastUpdatedTag";
 import { RemoveRevisionDialog } from "./RemoveRevisionDialog";
-import type { SectionData, ChapterData } from "./types";
+import type { ChapterData } from "./types";
 
-type SectionContentEditorProps = {
-  /** The section data including name, id, and saved content. */
-  section: SectionData;
-  /** When true, hides the section heading and shows a preview-tooltip info icon instead. */
-  isFirst: boolean;
-  /** The current unsaved draft content for this section. */
+type PageContentEditorProps = {
+  /** Heading shown above the editor and in the remove-revision dialog title. */
+  label: string;
+  /** When true, hides the heading and shows a preview-tooltip info icon instead (used for the page body). */
+  isBody?: boolean;
+  /** The currently saved content, used as the "current" side of the remove-revision diff. */
+  savedContent: string;
+  /** The current unsaved draft content for this field. */
   draftContent: string;
   /** Chapter index of the last saved revision, or null if never saved. */
   lastUpdatedIdx: number | null;
@@ -53,21 +55,21 @@ type SectionContentEditorProps = {
    * the exact range of chapters that would be affected.
    */
   nextRevisionChapterIdx: number | null;
+  /** Editor height in pixels. Defaults to 300 (body); pass a smaller value for the infobox. */
+  height?: number;
 };
 
 /**
- * Two-column editor for a single wiki page section: saved content on the left,
- * MDEditor draft on the right. The first section omits its heading and shows a
- * tooltip explaining it powers hover previews.
- *
- * Shows a "Remove revision" button when the selected chapter has a direct revision.
- * Clicking it opens a confirmation dialog with a side-by-side diff and chapter
- * impact timeline before loading the previous revision into the draft.
+ * Editor for a single chapter-versioned page content field (the page body or
+ * the infobox content), with a "Remove revision" action that opens a
+ * confirmation dialog showing a side-by-side diff and chapter impact
+ * timeline before loading the previous revision into the draft.
  *
  * @example
- * <SectionContentEditor
- *   section={section}
- *   isFirst={true}
+ * <PageContentEditor
+ *   label="Body"
+ *   isBody
+ *   savedContent="..."
  *   draftContent="..."
  *   lastUpdatedIdx={1}
  *   selectedChapterIdx={3}
@@ -79,10 +81,11 @@ type SectionContentEditorProps = {
  *   allChapters={allChapters}
  * />
  */
-export function SectionContentEditor(props: SectionContentEditorProps) {
+export function PageContentEditor(props: PageContentEditorProps) {
   const {
-    section,
-    isFirst,
+    label,
+    isBody = false,
+    savedContent,
     draftContent,
     lastUpdatedIdx,
     selectedChapterIdx,
@@ -96,6 +99,7 @@ export function SectionContentEditor(props: SectionContentEditorProps) {
     onConfirmRemove,
     allChapters,
     nextRevisionChapterIdx,
+    height = 300,
   } = props;
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -108,9 +112,9 @@ export function SectionContentEditor(props: SectionContentEditorProps) {
   return (
     <Box col className="gap-2">
       <Box className="items-center gap-2 flex-wrap">
-        {!isFirst && <Text variant="h2">{section.name}</Text>}
-        {isFirst && (
-          <InfoIcon contents="This section will appear in preview tooltips when this page is mentioned elsewhere." />
+        {!isBody && <Text variant="h2">{label}</Text>}
+        {isBody && (
+          <InfoIcon contents="This content will appear in preview tooltips when this page is mentioned elsewhere." />
         )}
         <LastUpdatedTag
           lastUpdatedIdx={lastUpdatedIdx}
@@ -123,20 +127,20 @@ export function SectionContentEditor(props: SectionContentEditorProps) {
               variant="ghost"
               size="sm"
               onClick={() => setIsDialogOpen(true)}
-              aria-label="Remove this section's revision"
+              aria-label={`Remove this ${label.toLowerCase()}'s revision`}
               className="text-muted-foreground hover:text-foreground gap-1.5"
             >
               <Eraser size={14} />
               Remove revision
             </Button>
           ) : (
-            <Tooltip content="No revision exists for this section yet">
+            <Tooltip content="No revision exists yet">
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 disabled
-                aria-label="Remove this section's revision"
+                aria-label={`Remove this ${label.toLowerCase()}'s revision`}
                 className="gap-1.5"
               >
                 <Eraser size={14} />
@@ -150,7 +154,7 @@ export function SectionContentEditor(props: SectionContentEditorProps) {
       <WikiLinkMDEditor
         value={draftContent}
         onChange={(val) => onChange(val ?? "")}
-        height={300}
+        height={height}
         preview="edit"
         wikiPages={wikiPages}
         serialSlug={serialSlug}
@@ -162,8 +166,8 @@ export function SectionContentEditor(props: SectionContentEditorProps) {
         isOpen={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
         onConfirm={handleConfirmRemove}
-        sectionName={isFirst ? "Summary" : section.name}
-        currentContent={section.content}
+        sectionName={label}
+        currentContent={savedContent}
         previousContent={previousRevisionContent}
         previousRevisionChapterIdx={previousRevisionChapterIdx}
         allChapters={allChapters}

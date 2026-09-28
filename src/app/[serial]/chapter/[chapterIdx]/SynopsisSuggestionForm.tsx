@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback } from "react";
+import { useServerAction } from "@/hooks/useServerAction";
 import { Box } from "@/components/ui/Box";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -49,8 +49,7 @@ export function SynopsisSuggestionForm(props: SynopsisSuggestionFormProps) {
     chapterType,
   } = props;
 
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const { runAsync, isPending } = useServerAction();
   const [draft, setDraft] = useState(currentContent);
   const [citation, setCitation] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -72,16 +71,12 @@ export function SynopsisSuggestionForm(props: SynopsisSuggestionFormProps) {
       return;
     }
     setSubmitError(null);
-    startTransition(async () => {
-      const result = await submitSynopsisSuggestion(chapterId, citation, draft);
-      if (result.error) {
-        setSubmitError(result.error);
-      } else {
-        setSubmitted(true);
-        router.refresh();
-      }
-    });
-  }, [chapterId, citation, draft, currentContent, router]);
+    runAsync(
+      () => submitSynopsisSuggestion(chapterId, citation, draft),
+      () => setSubmitted(true),
+      (err) => setSubmitError(err),
+    );
+  }, [runAsync, chapterId, citation, draft, currentContent]);
 
   if (submitted) {
     return (
