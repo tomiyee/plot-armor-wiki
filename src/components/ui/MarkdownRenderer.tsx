@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import type { PluggableList } from "unified";
 import remarkGfm from "remark-gfm";
@@ -11,7 +10,7 @@ import { WikiLinkPreview } from "@/components/WikiLinkPreview";
 import { ChapterLinkPreview } from "@/components/ChapterLinkPreview";
 import { RefCitationSup } from "@/components/RefCitationSup";
 import { RefList } from "@/components/RefList";
-import { REFBOX_LINE_RE, buildRefMaps, extractRefCitations } from "@/lib/refs";
+import { buildRefMaps, extractRefCitations } from "@/lib/refs";
 
 type MarkdownRendererProps = {
   /** Raw markdown string to render. */
@@ -53,7 +52,7 @@ type MarkdownRendererProps = {
    */
   refOrdinalMap?: Map<string, number>;
   /**
-   * Token → quotes for the `{{refbox}}` list, paired with `refOrdinalMap`.
+   * Token → quotes for the reference list, paired with `refOrdinalMap`.
    * When omitted, both maps are computed from this markdown alone.
    */
   refQuotesMap?: Map<string, string[]>;
@@ -318,7 +317,8 @@ function makeSupComponent(
  * - `[[PageName]]` / `[[page:PageName]]` → page links
  * - `[[Chapter:Name]]` (category matches `chapterType`) → chapter links
  *
- * Links inside backticks are left as-is.
+ * Links inside backticks are left as-is. When the content has `{{ref|…}}`
+ * citations, a numbered reference list is appended after it.
  *
  * @example
  * <MarkdownRenderer>{section.content}</MarkdownRenderer>
@@ -340,18 +340,14 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
     refQuotesMap,
   } = props;
 
-  // `{{refbox}}` lines split the markdown; a RefList renders in place of each.
-  // Without page-level maps, number refs across the whole string so every
-  // chunk and the list agree.
-  const hasRefbox = children.includes("{{refbox}}");
+  // Without page-level maps, number refs from this markdown alone.
   let ordinalMap = refOrdinalMap;
   let quotesMap = refQuotesMap;
-  if (hasRefbox && (!ordinalMap || !quotesMap)) {
+  if (!ordinalMap || !quotesMap) {
     const local = buildRefMaps(extractRefCitations(children));
     ordinalMap ??= local.ordinalMap;
     quotesMap ??= local.quotesMap;
   }
-  const chunks = hasRefbox ? children.split(REFBOX_LINE_RE) : [children];
 
   const remarkPlugins: PluggableList = [remarkGfm];
   if (serialSlug) {
@@ -375,29 +371,21 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
 
   return (
     <div className={cn("max-w-none", className)}>
-      {chunks.map((chunk, i) => (
-        <Fragment key={i}>
-          {i > 0 && (
-            <RefList
-              ordinalMap={ordinalMap!}
-              quotesMap={quotesMap!}
-              serialSlug={serialSlug}
-              pageTitles={pageTitles}
-              chapterType={chapterType}
-              wikiChapters={wikiChapters}
-            />
-          )}
-          {chunk.trim() && (
-            <ReactMarkdown
-              remarkPlugins={remarkPlugins}
-              rehypePlugins={[rehypeRaw]}
-              components={components}
-            >
-              {chunk}
-            </ReactMarkdown>
-          )}
-        </Fragment>
-      ))}
+      <ReactMarkdown
+        remarkPlugins={remarkPlugins}
+        rehypePlugins={[rehypeRaw]}
+        components={components}
+      >
+        {children}
+      </ReactMarkdown>
+      <RefList
+        ordinalMap={ordinalMap}
+        quotesMap={quotesMap}
+        serialSlug={serialSlug}
+        pageTitles={pageTitles}
+        chapterType={chapterType}
+        wikiChapters={wikiChapters}
+      />
     </div>
   );
 }

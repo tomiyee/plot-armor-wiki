@@ -106,6 +106,8 @@ export function RefCitationSup(props: RefCitationSupProps) {
         pageName={parts?.alias ?? parts?.page ?? token}
         serialSlug={serialSlug}
         pageTitles={pageTitles}
+        chapterType={chapterType}
+        wikiChapters={wikiChapters}
       />
     </HoverCard>
   );
@@ -147,10 +149,12 @@ type RefPreviewContentProps = {
   pageName: string;
   serialSlug: string;
   pageTitles?: Record<string, string>;
+  chapterType?: string;
+  wikiChapters?: Record<string, number>;
 };
 
 function RefPreviewContent(props: RefPreviewContentProps) {
-  const { state, pageName, serialSlug, pageTitles } = props;
+  const { state, pageName, ...linkProps } = props;
 
   if (state === "idle" || state === "loading") {
     return (
@@ -165,13 +169,12 @@ function RefPreviewContent(props: RefPreviewContentProps) {
       <PagePreview
         data={state.data}
         pageName={pageName}
-        serialSlug={serialSlug}
-        pageTitles={pageTitles}
+        {...linkProps}
       />
     );
   }
 
-  return <ChapterPreview data={state.data} />;
+  return <ChapterPreview data={state.data} {...linkProps} />;
 }
 
 const PREVIEW_CHARS = 200;
@@ -181,10 +184,13 @@ type PagePreviewProps = {
   pageName: string;
   serialSlug: string;
   pageTitles?: Record<string, string>;
+  chapterType?: string;
+  wikiChapters?: Record<string, number>;
 };
 
 function PagePreview(props: PagePreviewProps) {
-  const { data, pageName, serialSlug, pageTitles } = props;
+  const { data, pageName, serialSlug, pageTitles, chapterType, wikiChapters } =
+    props;
 
   if (data === "missing") {
     return (
@@ -237,6 +243,8 @@ function PagePreview(props: PagePreviewProps) {
             sm
             serialSlug={serialSlug}
             pageTitles={pageTitles ?? data.pageTitles}
+            chapterType={chapterType}
+            wikiChapters={wikiChapters}
           >
             {data.infoboxContent}
           </MarkdownRenderer>
@@ -249,6 +257,8 @@ function PagePreview(props: PagePreviewProps) {
             sm
             serialSlug={serialSlug}
             pageTitles={pageTitles ?? data.pageTitles}
+            chapterType={chapterType}
+            wikiChapters={wikiChapters}
             className="[&_p]:mb-1 [&_p:last-child]:mb-0"
           >
             {truncated}
@@ -267,10 +277,14 @@ function PagePreview(props: PagePreviewProps) {
 
 type ChapterPreviewProps = {
   data: ChapterLinkPreviewData | "missing";
+  serialSlug: string;
+  pageTitles?: Record<string, string>;
+  chapterType?: string;
+  wikiChapters?: Record<string, number>;
 };
 
 function ChapterPreview(props: ChapterPreviewProps) {
-  const { data } = props;
+  const { data, ...linkProps } = props;
 
   if (data === "missing") {
     return (
@@ -311,6 +325,7 @@ function ChapterPreview(props: ChapterPreviewProps) {
         <div className="border-t border-border pt-2">
           <MarkdownRenderer
             sm
+            {...linkProps}
             className="[&_p]:mb-1 [&_p:last-child]:mb-0"
           >
             {data.synopsisSnippet}

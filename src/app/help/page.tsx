@@ -65,7 +65,7 @@ export default function HelpPage() {
             href="#inline-citations"
             className="text-sm text-primary hover:underline"
           >
-            Inline citations (ref / refbox)
+            Inline citations
           </Link>
         </nav>
 
@@ -322,7 +322,7 @@ export default function HelpPage() {
           id="inline-citations"
           className="flex flex-col gap-4 scroll-mt-16"
         >
-          <Text variant="h2">Inline citations (ref / refbox)</Text>
+          <Text variant="h2">Inline citations</Text>
           <Text>
             You can cross-reference related pages and chapters inline with the
             ref system. Two syntaxes are supported:
@@ -344,7 +344,7 @@ export default function HelpPage() {
               <sup>
                 <a href="#" className="text-primary">[1]</a>
               </sup>{" "}
-              that links to the corresponding entry in the refbox.
+              that links to the corresponding entry in the reference list.
             </Text>
             <pre className="rounded-md bg-muted px-4 py-3 text-sm font-mono overflow-x-auto">
               {`Luffy is the captain of the Straw Hat Pirates.{{ref|page:luffy}}\nNami joined after the Arlong Arc.{{ref|chapter:Chapter 8}}`}
@@ -382,26 +382,10 @@ export default function HelpPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Text variant="h3">Adding the reference list</Text>
+            <Text variant="h3">The reference list</Text>
             <Text>
-              Place{" "}
-              <code className="rounded bg-muted px-1 py-0.5 text-sm font-mono">
-                {"{{refbox}}"}
-              </code>{" "}
-              on its own line where you want the numbered reference list to
-              appear — typically at the bottom of a section. It is replaced at
-              render time with an ordered list of all cited targets.
-            </Text>
-            <pre className="rounded-md bg-muted px-4 py-3 text-sm font-mono overflow-x-auto">
-              {`== References ==\n\n{{refbox}}`}
-            </pre>
-            <Text muted className="text-sm">
-              The{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono">
-                {"{{refbox}}"}
-              </code>{" "}
-              position is author-controlled and is not added automatically.
-              Place it wherever a references section makes sense for your page.
+              A numbered reference list is added automatically at the end of
+              any page that has citations. You do not need to add it yourself.
             </Text>
           </div>
 
@@ -417,11 +401,7 @@ export default function HelpPage() {
               chip at the cursor. Clicking an existing ref chip reopens the
               picker so you can change the target. The picker lists only pages
               and chapters up to the chapter you are writing as of, so you
-              can&apos;t cite spoilers by accident. In the editor,{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono">
-                {"{{refbox}}"}
-              </code>{" "}
-              shows as a &ldquo;References list&rdquo; chip.
+              can&apos;t cite spoilers by accident.
             </Text>
           </div>
         </section>

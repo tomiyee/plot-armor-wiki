@@ -13,25 +13,23 @@ import { ElementNode, $createTextNode } from "lexical";
 import type * as Mdast from "mdast";
 import { WikiLinkNode, $isWikiLinkNode } from "./WikiLinkNode";
 import { RefNode } from "./RefNode";
-import { RefboxNode } from "./RefboxNode";
 import { REF_RE, parseRefBody } from "@/lib/refs";
 import { escapeWikiAlias, unescapeWikiAlias } from "@/lib/wiki-links";
 
-// Combined pattern matching wiki links, ref citations, and refboxes in one pass.
-// Groups: 1 = wikilink token, 2 = wikilink alias, 3 = ref body. Refbox has no groups.
+// Combined pattern matching wiki links and ref citations in one pass.
+// Groups: 1 = wikilink token, 2 = wikilink alias, 3 = ref body.
 const COMBINED_RE = new RegExp(
   String.raw`\[?\[\[([^|\[\]]+)(?:\|((?:[^\]\\]|\\.)*))?\]\]|` +
-    REF_RE.source +
-    String.raw`|\{\{refbox\}\}`,
+    REF_RE.source,
   "g",
 );
 
-// ── MDXEditor import visitor: text → WikiLinkNode / RefNode / RefboxNode ────
+// ── MDXEditor import visitor: text → WikiLinkNode / RefNode ─────────────────
 
 /**
- * Intercepts mdast text nodes that contain `[[token]]`, `{{ref|token}}`, or
- * `{{refbox}}` patterns and splits them into WikiLinkNodes, RefNodes,
- * RefboxNodes, and plain TextNodes in a single left-to-right pass.
+ * Intercepts mdast text nodes that contain `[[token]]` or `{{ref|token}}`
+ * patterns and splits them into WikiLinkNodes, RefNodes, and plain TextNodes
+ * in a single left-to-right pass.
  *
  * Handles both patterns together so a text node like
  * `[[Page|Alias]]. {{ref|Chapter:1.04}}` produces a WikiLinkNode followed by a
@@ -72,13 +70,10 @@ export const WikiLinkTextVisitor: MdastImportVisitor<Mdast.Text> = {
         // Wiki link — group 1 = token, group 2 = optional alias
         const alias = match[2] ? unescapeWikiAlias(match[2].trim()) || undefined : undefined;
         (lexicalParent as ElementNode).append(new WikiLinkNode(match[1], alias));
-      } else if (match[3] !== undefined) {
+      } else {
         // Ref citation — group 3 = body (token plus optional quote params)
         const { token, quotes } = parseRefBody(match[3]);
         (lexicalParent as ElementNode).append(new RefNode(token, quotes));
-      } else {
-        // {{refbox}} — no capture groups
-        (lexicalParent as ElementNode).append(new RefboxNode());
       }
 
       lastIndex = match.index + match[0].length;

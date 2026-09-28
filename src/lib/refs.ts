@@ -10,8 +10,6 @@
 /** Matches a whole ref citation; group 1 is the body after `ref|`. */
 export const REF_RE = /\{\{ref\|([^}]+)\}\}/g;
 
-/** Matches a line containing only `{{refbox}}`. */
-export const REFBOX_LINE_RE = /^[ \t]*\{\{refbox\}\}[ \t]*$/gm;
 
 const QUOTE_PREFIX = "quote=";
 const QUOTE_UNSAFE_RE = /[%|{}*_[\]`<>&~\\\r\n]/g;
@@ -88,7 +86,7 @@ export function extractRefCitations(markdown: string): RefCitation[] {
 
 /**
  * Numbers citations by first appearance of each token and collects each
- * token's distinct quotes, for rendering `[N]` superscripts and `{{refbox}}`.
+ * token's distinct quotes, for rendering `[N]` superscripts and the reference list.
  *
  * @example
  * const { ordinalMap, quotesMap } = buildRefMaps(extractRefCitations(markdown));

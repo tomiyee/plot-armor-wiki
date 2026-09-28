@@ -121,7 +121,7 @@ export function WikiPageRefsProvider(props: WikiPageRefsProviderProps) {
 /**
  * Registers this section's ref citations with the page-level context and
  * returns the page-wide ordinal and quote maps, so `MarkdownRenderer` numbers
- * refs consistently across sections and `{{refbox}}` lists every page ref with
+ * refs consistently across sections and the appended reference list covers every page ref with
  * its quotes. Unregisters on unmount so ordinals update when sections go away.
  *
  * Must be called inside a `WikiPageRefsProvider`. Pass `ordinalMap` to

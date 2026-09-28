@@ -9,7 +9,6 @@ import {
 } from "@mdxeditor/editor";
 import type * as Mdast from "mdast";
 import { RefNode, $isRefNode } from "./RefNode";
-import { RefboxNode, $isRefboxNode } from "./RefboxNode";
 import { formatRef } from "@/lib/refs";
 
 // ── MDXEditor export visitors ────────────────────────────────────────────────
@@ -32,15 +31,6 @@ export const RefExportVisitor: LexicalExportVisitor<RefNode, Mdast.Text> = {
   },
 };
 
-export const RefboxExportVisitor: LexicalExportVisitor<RefboxNode, Mdast.Text> = {
-  testLexicalNode: $isRefboxNode,
-  visitLexicalNode({ mdastParent, actions }) {
-    actions.appendToParent(mdastParent, {
-      type: "refbox",
-    } as unknown as Mdast.Text);
-  },
-};
-
 // ── toMarkdown handlers ──────────────────────────────────────────────────────
 
 /**
@@ -50,7 +40,6 @@ export const RefboxExportVisitor: LexicalExportVisitor<RefboxNode, Mdast.Text> =
 export const refToMarkdownExtension = {
   handlers: {
     refCitation: (node: MdastRefNode) => formatRef(node),
-    refbox: () => "{{refbox}}",
   },
 } as unknown as ToMarkdownExtension;
 
@@ -67,10 +56,6 @@ export const refPlugin = realmPlugin({
     realm.pubIn({
       [addLexicalNode$]: RefNode,
       [addExportVisitor$]: RefExportVisitor,
-    });
-    realm.pubIn({
-      [addLexicalNode$]: RefboxNode,
-      [addExportVisitor$]: RefboxExportVisitor,
     });
   },
 })();
