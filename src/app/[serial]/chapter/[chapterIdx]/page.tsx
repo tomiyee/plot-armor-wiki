@@ -170,7 +170,10 @@ export default async function ChapterPage(props: ChapterPageProps) {
     pendingSynopsisSuggestions = pendingSuggestions;
   }
 
-  const wikiChapters = chapterList.map((c) => ({
+  // A synopsis may only reference chapters up to the one it describes.
+  const wikiChapters = chapterList
+    .filter((c) => c.idx <= chapter.idx)
+    .map((c) => ({
     name: c.displayName,
     idx: c.idx,
   }));

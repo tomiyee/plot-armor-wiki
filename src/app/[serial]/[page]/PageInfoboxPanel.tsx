@@ -37,7 +37,7 @@ type PageInfoboxPanelProps = {
   /** Slug of the serial — forwarded to the MDEditor for wiki-link autocomplete. */
   serialSlug: string;
   /** All wiki pages for `[[Page]]` autocomplete in the MDEditor. */
-  wikiPages: { name: string; slug: string }[];
+  wikiPages: { name: string; slug: string; introIdx?: number | null }[];
   /** All chapters for `[[Chapter:Name]]` autocomplete in the MDEditor. */
   wikiChapters?: { name: string; idx: number }[];
   /** The serial's chapter type label (e.g. `"Chapter"`). */

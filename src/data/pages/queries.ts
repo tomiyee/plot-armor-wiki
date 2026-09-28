@@ -242,9 +242,14 @@ export function childRelMaxIdxSq(parentPageId: number, cutoffIdx: number) {
 export async function fetchSerialPagesAtIdx(
   serialId: number,
   cutoffIdx: number,
-): Promise<PageStub[]> {
+): Promise<(PageStub & { introIdx: number | null })[]> {
   return db
-    .select({ id: pages.id, name: pages.name, slug: pages.slug })
+    .select({
+      id: pages.id,
+      name: pages.name,
+      slug: pages.slug,
+      introIdx: chapters.idx,
+    })
     .from(pages)
     .leftJoin(chapters, eq(pages.introChapterId, chapters.id))
     .where(
@@ -735,9 +740,14 @@ export async function fetchPageSerialId(
 export async function fetchSearchablePagesAtIdx(
   serialId: number,
   cutoffIdx: number,
-): Promise<PageStub[]> {
+): Promise<(PageStub & { introIdx: number | null })[]> {
   return db
-    .select({ id: pages.id, name: pages.name, slug: pages.slug })
+    .select({
+      id: pages.id,
+      name: pages.name,
+      slug: pages.slug,
+      introIdx: chapters.idx,
+    })
     .from(pages)
     .leftJoin(chapters, eq(pages.introChapterId, chapters.id))
     .where(

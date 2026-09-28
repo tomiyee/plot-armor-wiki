@@ -9,6 +9,10 @@ import { Text } from "@/components/ui/Text";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
+import {
+  WikiPageRefsProvider,
+  useWikiPageRefs,
+} from "@/contexts/WikiPageRefsContext";
 import { SuggestionForm } from "./SuggestionForm";
 import type { ChapterData } from "./types";
 import type { SuggestionStatus } from "@/types";
@@ -36,7 +40,7 @@ type SuggestionContext = {
   /** The chapter the user is currently reading up to. */
   readingChapterId: number | null;
   /** Wiki pages for `[[Page]]` autocomplete in the editor. */
-  wikiPagesList: { name: string; slug: string }[];
+  wikiPagesList: { name: string; slug: string; introIdx?: number | null }[];
   /** Chapters for `[[Chapter:Name]]` autocomplete. */
   wikiChaptersList: { name: string; idx: number }[];
   /** All of the current user's suggestions for this page, most recent first. */
@@ -133,6 +137,40 @@ function SubPageList(props: SubPageListProps) {
   );
 }
 
+type RefAwareMarkdownProps = {
+  /** Stable key identifying this section in the global refs registry (e.g. `"section-42"`). */
+  sectionKey: string;
+  /** Raw markdown to render; scanned for `{{ref|token}}` to register with the refs context. */
+  markdown: string;
+  /** Shrink text sizing (for infobox rows). */
+  sm?: boolean;
+  serialSlug?: string;
+  pageTitles?: Record<string, string>;
+  chapterType?: string;
+  wikiChapters?: Record<string, number>;
+};
+
+/**
+ * Registers this section's ref tokens with `WikiPageRefsProvider` and renders the
+ * markdown with globally consistent reference ordinals.
+ *
+ * @example
+ * <RefAwareMarkdown sectionKey="section-42" markdown={section.content} serialSlug="one-piece" />
+ */
+function RefAwareMarkdown(props: RefAwareMarkdownProps) {
+  const { sectionKey, markdown, ...rest } = props;
+  const { ordinalMap, quotesMap } = useWikiPageRefs(sectionKey, markdown);
+  return (
+    <MarkdownRenderer
+      refOrdinalMap={ordinalMap}
+      refQuotesMap={quotesMap}
+      {...rest}
+    >
+      {markdown}
+    </MarkdownRenderer>
+  );
+}
+
 /**
  * Read-mode layout for a wiki page: infobox floater, body content, and child page list.
  * Authenticated non-admins see a FilePenLine icon on hover over the body to open the
@@ -171,6 +209,13 @@ export function PageReadView(props: PageReadViewProps) {
   const [showSuggestionDetail, setShowSuggestionDetail] = useState(false);
   const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState(0);
   const [subPageSearch, setSubPageSearch] = useState("");
+
+  // Build the global ref ordering: infobox first, then body content.
+  const refsOrderedSections = [
+    { key: "infobox", markdown: infoboxContent ?? "" },
+    { key: "content", markdown: content ?? "" },
+  ];
+  const refsOrderedSectionKeys = refsOrderedSections.map((s) => s.key);
 
   const hasFloaterContent = !!(floaterImageUrl || infoboxContent);
 
@@ -311,6 +356,10 @@ export function PageReadView(props: PageReadViewProps) {
   })();
 
   return (
+    <WikiPageRefsProvider
+      orderedSectionKeys={refsOrderedSectionKeys}
+      initialSections={refsOrderedSections}
+    >
     <div className="overflow-hidden">
       {hasFloaterContent && (
         <aside className="float-none w-full mb-4 sm:float-right sm:w-72 sm:ml-4 sm:mb-4 rounded-lg border border-border bg-muted/40 p-4 flex flex-col gap-3">
@@ -326,15 +375,15 @@ export function PageReadView(props: PageReadViewProps) {
           )}
 
           {infoboxContent && (
-            <MarkdownRenderer
+            <RefAwareMarkdown
+              sectionKey="infobox"
+              markdown={infoboxContent}
               sm
               serialSlug={serialSlug}
               pageTitles={pageTitles}
               chapterType={chapterType}
               wikiChapters={wikiChapters}
-            >
-              {infoboxContent}
-            </MarkdownRenderer>
+            />
           )}
         </aside>
       )}
@@ -353,14 +402,14 @@ export function PageReadView(props: PageReadViewProps) {
           </div>
         )}
         {content ? (
-          <MarkdownRenderer
+          <RefAwareMarkdown
+            sectionKey="content"
+            markdown={content}
             serialSlug={serialSlug}
             pageTitles={pageTitles}
             chapterType={chapterType}
             wikiChapters={wikiChapters}
-          >
-            {content}
-          </MarkdownRenderer>
+          />
         ) : (
           <Text muted>No content for this chapter yet.</Text>
         )}
@@ -429,5 +478,6 @@ export function PageReadView(props: PageReadViewProps) {
         )}
       </div>
     </div>
+    </WikiPageRefsProvider>
   );
 }

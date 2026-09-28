@@ -12,7 +12,7 @@ import { createContext } from "react";
  * always see fresh data regardless of the plugins useMemo deps.
  */
 export const WikiLinkContext = createContext<{
-  wikiPages: { name: string; slug: string }[];
+  wikiPages: { name: string; slug: string; introIdx?: number | null }[];
   wikiChapters: { name: string; idx: number }[];
   chapterType?: string;
   /** Inserts a WikiLinkNode at the current Lexical cursor position, with an optional alias. */

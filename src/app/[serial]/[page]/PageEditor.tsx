@@ -70,7 +70,7 @@ interface PageEditorProps {
   readingChapterId: number | null;
   /** Wiki pages visible to the reader at their chapter cutoff, used to power
    * the `[[slug]]` autocomplete in edit mode. */
-  wikiPages: { name: string; slug: string }[];
+  wikiPages: { name: string; slug: string; introIdx?: number | null }[];
   /** slug → chapter-versioned title map for resolving `[[slug]]` display text. */
   pageTitles?: Record<string, string>;
   /**
