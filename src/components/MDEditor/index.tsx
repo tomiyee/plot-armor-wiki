@@ -44,6 +44,8 @@ import { InsertRefButton } from "./InsertRefButton";
 import { RefNode, $isRefNode } from "./RefNode";
 import { RefEditPopover } from "./RefEditPopover";
 import { refPlugin } from "./RefVisitors";
+import { cellListPlugin } from "./CellListVisitors";
+import { InsertCellListButton } from "./InsertCellListButton";
 import { formatRef } from "@/lib/refs";
 import { normalizeMarkdown, prepareMarkdownForEditor } from "./normalizeMarkdown";
 import {
@@ -692,6 +694,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
     return [
       wikiPlugin,
       refPlugin,
+      cellListPlugin,
       toolbarPlugin({
         toolbarContents: () => (
           <DiffSourceToggleWrapper>
@@ -705,6 +708,7 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
             <ListsToggle />
             <Separator />
             <InsertTable />
+            <InsertCellListButton />
             <InsertThematicBreak />
             <Separator />
             <InsertWikiLinkButton />

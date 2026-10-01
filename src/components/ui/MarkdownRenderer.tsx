@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Text } from "@/components/ui/Text";
 import { remarkWikiLinks } from "@/lib/remark-wiki-links";
 import { remarkRefs } from "@/lib/remark-refs";
+import { remarkCellLists } from "@/lib/remark-cell-lists";
 import { WikiLinkPreview } from "@/components/WikiLinkPreview";
 import { ChapterLinkPreview } from "@/components/ChapterLinkPreview";
 import { RefCitationSup } from "@/components/RefCitationSup";
@@ -157,7 +158,7 @@ const COMPONENTS: Components = {
     </th>
   ),
   td: ({ children }) => (
-    <td className="px-3 py-2 text-foreground/80">{children}</td>
+    <td className="px-3 py-2 text-foreground/80 [&_ul]:mb-0">{children}</td>
   ),
 };
 
@@ -361,7 +362,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
     quotesMap ??= local.quotesMap;
   }
 
-  const remarkPlugins: PluggableList = [remarkGfm];
+  const remarkPlugins: PluggableList = [remarkGfm, remarkCellLists];
   if (serialSlug) {
     remarkPlugins.push(
       remarkWikiLinks(serialSlug, pageTitles, {
