@@ -53,9 +53,10 @@ export function HoverCard(props: HoverCardProps) {
           // z-index must live on the positioned element; on the popup it has no effect.
           className="z-50"
         >
+          {/* Cap height to 24rem or the space Base UI reports on the chosen side, whichever is smaller; scroll the rest. */}
           <PreviewCardPrimitive.Popup
             className={cn(
-              "w-72 max-h-[calc(var(--scroll-area-h)-1rem)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground p-4 shadow-lg",
+              "w-72 max-h-[min(24rem,var(--available-height))] overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover text-popover-foreground p-4 shadow-lg",
               "data-starting-style:opacity-0 data-ending-style:opacity-0",
               "transition-opacity duration-150",
               className,
