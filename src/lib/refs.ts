@@ -7,6 +7,8 @@
  * survives remark parsing as a single text node.
  */
 
+import { expandCellLists } from "./cell-lists";
+
 /** Matches a whole ref citation; group 1 is the body after `ref|`. */
 export const REF_RE = /\{\{ref\|([^}]+)\}\}/g;
 
@@ -80,7 +82,11 @@ export function formatRef(ref: RefCitation): string {
  */
 export function extractRefCitations(markdown: string): RefCitation[] {
   const out: RefCitation[] = [];
-  for (const m of markdown.matchAll(REF_RE)) out.push(parseRefBody(m[1]));
+  // Refs inside `{{list:…}}` items are percent-encoded; decode them first so
+  // they are numbered in document order with the rest. Refs in table cells
+  // are stored as `{{ref\|…}}` so the pipe doesn't end the cell.
+  const expanded = expandCellLists(markdown).replace(/\\\|/g, "|");
+  for (const m of expanded.matchAll(REF_RE)) out.push(parseRefBody(m[1]));
   return out;
 }
 

@@ -5,11 +5,13 @@ import type {
 import {
   addLexicalNode$,
   addExportVisitor$,
+  addToMarkdownExtension$,
   realmPlugin,
 } from "@mdxeditor/editor";
 import type * as Mdast from "mdast";
 import { RefNode, $isRefNode } from "./RefNode";
 import { formatRef } from "@/lib/refs";
+import { escapeTableCellPipes } from "./escapeTableCellPipes";
 
 // ── MDXEditor export visitors ────────────────────────────────────────────────
 
@@ -34,12 +36,14 @@ export const RefExportVisitor: LexicalExportVisitor<RefNode, Mdast.Text> = {
 // ── toMarkdown handlers ──────────────────────────────────────────────────────
 
 /**
- * Passed to MDXEditorClient.toMarkdownOptions. Emits `{{ref|token|quote=…}}` verbatim
- * — mdast-util-to-markdown would otherwise escape `{`.
+ * Registered via addToMarkdownExtension$ in refPlugin. Emits `{{ref|token|quote=…}}` verbatim
+ * — mdast-util-to-markdown would otherwise escape `{`. Pipes are escaped
+ * inside table cells.
  */
 export const refToMarkdownExtension = {
   handlers: {
-    refCitation: (node: MdastRefNode) => formatRef(node),
+    refCitation: (node: MdastRefNode, _parent: unknown, state: { stack: string[] }) =>
+      escapeTableCellPipes(formatRef(node), state),
   },
 } as unknown as ToMarkdownExtension;
 
@@ -56,6 +60,7 @@ export const refPlugin = realmPlugin({
     realm.pubIn({
       [addLexicalNode$]: RefNode,
       [addExportVisitor$]: RefExportVisitor,
+      [addToMarkdownExtension$]: refToMarkdownExtension,
     });
   },
 })();

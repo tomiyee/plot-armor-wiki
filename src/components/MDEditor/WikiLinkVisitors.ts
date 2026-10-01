@@ -7,20 +7,26 @@ import {
   addLexicalNode$,
   addImportVisitor$,
   addExportVisitor$,
+  addToMarkdownExtension$,
   realmPlugin,
 } from "@mdxeditor/editor";
 import { ElementNode, $createTextNode } from "lexical";
 import type * as Mdast from "mdast";
 import { WikiLinkNode, $isWikiLinkNode } from "./WikiLinkNode";
 import { RefNode } from "./RefNode";
+import { escapeTableCellPipes } from "./escapeTableCellPipes";
+import { CellListNode } from "./CellListNode";
 import { REF_RE, parseRefBody } from "@/lib/refs";
+import { CELL_LIST_RE, parseCellListBody } from "@/lib/cell-lists";
 import { escapeWikiAlias, unescapeWikiAlias } from "@/lib/wiki-links";
 
 // Combined pattern matching wiki links and ref citations in one pass.
-// Groups: 1 = wikilink token, 2 = wikilink alias, 3 = ref body.
+// Groups: 1 = wikilink token, 2 = wikilink alias, 3 = ref body, 4 = cell list body.
 const COMBINED_RE = new RegExp(
   String.raw`\[?\[\[([^|\[\]]+)(?:\|((?:[^\]\\]|\\.)*))?\]\]|` +
-    REF_RE.source,
+    REF_RE.source +
+    "|" +
+    CELL_LIST_RE.source,
   "g",
 );
 
@@ -48,8 +54,9 @@ export const WikiLinkTextVisitor: MdastImportVisitor<Mdast.Text> = {
     const text = mdastNode.value;
     const hasWikiLink = text.includes("[[");
     const hasRef = text.includes("{{ref");
+    const hasList = text.includes("{{list:");
 
-    if (!hasWikiLink && !hasRef) {
+    if (!hasWikiLink && !hasRef && !hasList) {
       actions.nextVisitor();
       return;
     }
@@ -70,6 +77,9 @@ export const WikiLinkTextVisitor: MdastImportVisitor<Mdast.Text> = {
         // Wiki link — group 1 = token, group 2 = optional alias
         const alias = match[2] ? unescapeWikiAlias(match[2].trim()) || undefined : undefined;
         (lexicalParent as ElementNode).append(new WikiLinkNode(match[1], alias));
+      } else if (match[4] !== undefined) {
+        // Cell list — group 4 = percent-encoded items
+        (lexicalParent as ElementNode).append(new CellListNode(parseCellListBody(match[4])));
       } else {
         // Ref citation — group 3 = body (token plus optional quote params)
         const { token, quotes } = parseRefBody(match[3]);
@@ -112,12 +122,15 @@ export const WikiLinkExportVisitor: LexicalExportVisitor<
   },
 };
 
-// Passed to MDXEditorClient.toMarkdownOptions - emits [[token]] or [[token|alias]] verbatim.
+// Registered via addToMarkdownExtension$ in wikiPlugin (toMarkdownOptions.extensions would replace built-ins like gfmTable) - emits [[token]] or [[token|alias]] verbatim.
 // mdast-util-to-markdown escapes [ in text nodes; a custom handler bypasses that.
 export const wikiLinkToMarkdownExtension = {
   handlers: {
-    wikiLink: (node: MdastWikiLinkNode) =>
-      node.alias ? `[[${node.value}|${escapeWikiAlias(node.alias)}]]` : `[[${node.value}]]`,
+    wikiLink: (node: MdastWikiLinkNode, _parent: unknown, state: { stack: string[] }) =>
+      escapeTableCellPipes(
+        node.alias ? `[[${node.value}|${escapeWikiAlias(node.alias)}]]` : `[[${node.value}]]`,
+        state,
+      ),
   },
 } as unknown as ToMarkdownExtension;
 
@@ -134,6 +147,7 @@ export const wikiPlugin = realmPlugin({
       [addLexicalNode$]: WikiLinkNode,
       [addImportVisitor$]: WikiLinkTextVisitor,
       [addExportVisitor$]: WikiLinkExportVisitor,
+      [addToMarkdownExtension$]: wikiLinkToMarkdownExtension,
     });
   },
 })();
