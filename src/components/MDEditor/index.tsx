@@ -38,12 +38,12 @@ import { WikiLinkContext } from "./WikiLinkContext";
 import { InsertWikiLinkButton } from "./InsertWikiLinkButton";
 import { WikiLinkNode, $isWikiLinkNode } from "./WikiLinkNode";
 import { WikiLinkEditPopover } from "./WikiLinkEditPopover";
-import { wikiPlugin, wikiLinkToMarkdownExtension } from "./WikiLinkVisitors";
+import { wikiPlugin } from "./WikiLinkVisitors";
 import { RefContext } from "./RefContext";
 import { InsertRefButton } from "./InsertRefButton";
 import { RefNode, $isRefNode } from "./RefNode";
 import { RefEditPopover } from "./RefEditPopover";
-import { refPlugin, refToMarkdownExtension } from "./RefVisitors";
+import { refPlugin } from "./RefVisitors";
 import { formatRef } from "@/lib/refs";
 import { normalizeMarkdown, prepareMarkdownForEditor } from "./normalizeMarkdown";
 import {
@@ -761,9 +761,6 @@ export function WikiLinkMDEditor(props: WikiLinkMDEditorProps) {
             markdown={initialValue}
             onChange={handleChange}
             plugins={plugins}
-            toMarkdownOptions={{
-              extensions: [wikiLinkToMarkdownExtension, refToMarkdownExtension],
-            }}
             className={isDark ? "mdx-editor-wiki dark" : "mdx-editor-wiki"}
             contentEditableClassName="max-w-none px-4 py-3 focus:outline-none"
           />

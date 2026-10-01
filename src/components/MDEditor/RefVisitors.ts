@@ -5,6 +5,7 @@ import type {
 import {
   addLexicalNode$,
   addExportVisitor$,
+  addToMarkdownExtension$,
   realmPlugin,
 } from "@mdxeditor/editor";
 import type * as Mdast from "mdast";
@@ -34,7 +35,7 @@ export const RefExportVisitor: LexicalExportVisitor<RefNode, Mdast.Text> = {
 // ── toMarkdown handlers ──────────────────────────────────────────────────────
 
 /**
- * Passed to MDXEditorClient.toMarkdownOptions. Emits `{{ref|token|quote=…}}` verbatim
+ * Registered via addToMarkdownExtension$ in refPlugin. Emits `{{ref|token|quote=…}}` verbatim
  * — mdast-util-to-markdown would otherwise escape `{`.
  */
 export const refToMarkdownExtension = {
@@ -56,6 +57,7 @@ export const refPlugin = realmPlugin({
     realm.pubIn({
       [addLexicalNode$]: RefNode,
       [addExportVisitor$]: RefExportVisitor,
+      [addToMarkdownExtension$]: refToMarkdownExtension,
     });
   },
 })();

@@ -7,6 +7,7 @@ import {
   addLexicalNode$,
   addImportVisitor$,
   addExportVisitor$,
+  addToMarkdownExtension$,
   realmPlugin,
 } from "@mdxeditor/editor";
 import { ElementNode, $createTextNode } from "lexical";
@@ -112,7 +113,7 @@ export const WikiLinkExportVisitor: LexicalExportVisitor<
   },
 };
 
-// Passed to MDXEditorClient.toMarkdownOptions - emits [[token]] or [[token|alias]] verbatim.
+// Registered via addToMarkdownExtension$ in wikiPlugin (toMarkdownOptions.extensions would replace built-ins like gfmTable) - emits [[token]] or [[token|alias]] verbatim.
 // mdast-util-to-markdown escapes [ in text nodes; a custom handler bypasses that.
 export const wikiLinkToMarkdownExtension = {
   handlers: {
@@ -134,6 +135,7 @@ export const wikiPlugin = realmPlugin({
       [addLexicalNode$]: WikiLinkNode,
       [addImportVisitor$]: WikiLinkTextVisitor,
       [addExportVisitor$]: WikiLinkExportVisitor,
+      [addToMarkdownExtension$]: wikiLinkToMarkdownExtension,
     });
   },
 })();
