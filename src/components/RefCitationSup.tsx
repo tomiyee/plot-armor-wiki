@@ -43,7 +43,7 @@ type RefCitationSupProps = {
 /**
  * Inline reference citation rendered as a superscript with a hover preview card.
  * Produced by `remarkRefs` when the page contains `{{ref|token}}` syntax.
- * Hovering shows the referenced page or chapter summary without navigating away.
+ * Hovering shows the referenced page summary, or just the chapter name for chapter refs.
  *
  * @example
  * <RefCitationSup n={1} id="ref-cite-1" token="page:Luffy" serialSlug="one-piece" />
@@ -165,13 +165,7 @@ function RefPreviewContent(props: RefPreviewContentProps) {
   }
 
   if (state.kind === "page") {
-    return (
-      <PagePreview
-        data={state.data}
-        pageName={pageName}
-        {...linkProps}
-      />
-    );
+    return <PagePreview data={state.data} pageName={pageName} {...linkProps} />;
   }
 
   return <ChapterPreview data={state.data} {...linkProps} />;
@@ -212,8 +206,8 @@ function PagePreview(props: PagePreviewProps) {
           {data.pageName}
         </Text>
         <Text muted className="text-sm mt-1">
-          Introduced in {data.introChapterName ?? "a future chapter"}. Hidden
-          to prevent spoilers.
+          Introduced in {data.introChapterName ?? "a future chapter"}. Hidden to
+          prevent spoilers.
         </Text>
       </div>
     );
@@ -284,7 +278,7 @@ type ChapterPreviewProps = {
 };
 
 function ChapterPreview(props: ChapterPreviewProps) {
-  const { data, ...linkProps } = props;
+  const { data } = props;
 
   if (data === "missing") {
     return (
@@ -320,22 +314,6 @@ function ChapterPreview(props: ChapterPreviewProps) {
           </Text>
         )}
       </div>
-
-      {data.synopsisSnippet ? (
-        <div className="border-t border-border pt-2">
-          <MarkdownRenderer
-            sm
-            {...linkProps}
-            className="[&_p]:mb-1 [&_p:last-child]:mb-0"
-          >
-            {data.synopsisSnippet}
-          </MarkdownRenderer>
-        </div>
-      ) : (
-        <Text muted className="text-xs">
-          No synopsis yet.
-        </Text>
-      )}
     </div>
   );
 }
