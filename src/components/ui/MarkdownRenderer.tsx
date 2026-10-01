@@ -141,7 +141,12 @@ const COMPONENTS: Components = {
       </table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+  // GFM requires a header row, so headerless tables are written with an empty
+  // one (`| | |`). Skip rendering it so the table reads as body rows only.
+  thead: ({ node, children }) =>
+    node && !hasText(node) ? null : (
+      <thead className="bg-muted/50">{children}</thead>
+    ),
   tbody: ({ children }) => (
     <tbody className="divide-y divide-border">{children}</tbody>
   ),
@@ -155,6 +160,13 @@ const COMPONENTS: Components = {
     <td className="px-3 py-2 text-foreground/80">{children}</td>
   ),
 };
+
+type HastLike = { type: string; value?: string; children?: HastLike[] };
+
+function hasText(node: HastLike): boolean {
+  if (node.type === "text") return !!node.value?.trim();
+  return node.children?.some(hasText) ?? false;
+}
 
 const SM_COMPONENTS: Components = {
   ...COMPONENTS,
