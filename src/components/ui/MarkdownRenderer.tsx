@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Text } from "@/components/ui/Text";
 import { remarkWikiLinks } from "@/lib/remark-wiki-links";
 import { remarkRefs } from "@/lib/remark-refs";
+import { remarkCellLists } from "@/lib/remark-cell-lists";
 import { WikiLinkPreview } from "@/components/WikiLinkPreview";
 import { ChapterLinkPreview } from "@/components/ChapterLinkPreview";
 import { RefCitationSup } from "@/components/RefCitationSup";
@@ -141,7 +142,12 @@ const COMPONENTS: Components = {
       </table>
     </div>
   ),
-  thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+  // GFM requires a header row, so headerless tables are written with an empty
+  // one (`| | |`). Skip rendering it so the table reads as body rows only.
+  thead: ({ node, children }) =>
+    node && !hasText(node) ? null : (
+      <thead className="bg-muted/50">{children}</thead>
+    ),
   tbody: ({ children }) => (
     <tbody className="divide-y divide-border">{children}</tbody>
   ),
@@ -152,9 +158,16 @@ const COMPONENTS: Components = {
     </th>
   ),
   td: ({ children }) => (
-    <td className="px-3 py-2 text-foreground/80">{children}</td>
+    <td className="px-3 py-2 text-foreground/80 [&_ul]:mb-0">{children}</td>
   ),
 };
+
+type HastLike = { type: string; value?: string; children?: HastLike[] };
+
+function hasText(node: HastLike): boolean {
+  if (node.type === "text") return !!node.value?.trim();
+  return node.children?.some(hasText) ?? false;
+}
 
 const SM_COMPONENTS: Components = {
   ...COMPONENTS,
@@ -349,7 +362,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
     quotesMap ??= local.quotesMap;
   }
 
-  const remarkPlugins: PluggableList = [remarkGfm];
+  const remarkPlugins: PluggableList = [remarkGfm, remarkCellLists];
   if (serialSlug) {
     remarkPlugins.push(
       remarkWikiLinks(serialSlug, pageTitles, {
