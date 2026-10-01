@@ -14,6 +14,7 @@ import { ElementNode, $createTextNode } from "lexical";
 import type * as Mdast from "mdast";
 import { WikiLinkNode, $isWikiLinkNode } from "./WikiLinkNode";
 import { RefNode } from "./RefNode";
+import { escapeTableCellPipes } from "./escapeTableCellPipes";
 import { CellListNode } from "./CellListNode";
 import { REF_RE, parseRefBody } from "@/lib/refs";
 import { CELL_LIST_RE, parseCellListBody } from "@/lib/cell-lists";
@@ -125,8 +126,11 @@ export const WikiLinkExportVisitor: LexicalExportVisitor<
 // mdast-util-to-markdown escapes [ in text nodes; a custom handler bypasses that.
 export const wikiLinkToMarkdownExtension = {
   handlers: {
-    wikiLink: (node: MdastWikiLinkNode) =>
-      node.alias ? `[[${node.value}|${escapeWikiAlias(node.alias)}]]` : `[[${node.value}]]`,
+    wikiLink: (node: MdastWikiLinkNode, _parent: unknown, state: { stack: string[] }) =>
+      escapeTableCellPipes(
+        node.alias ? `[[${node.value}|${escapeWikiAlias(node.alias)}]]` : `[[${node.value}]]`,
+        state,
+      ),
   },
 } as unknown as ToMarkdownExtension;
 
