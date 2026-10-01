@@ -144,6 +144,8 @@ type RefAwareMarkdownProps = {
   markdown: string;
   /** Shrink text sizing (for infobox rows). */
   sm?: boolean;
+  /** Omit the trailing reference list; the body's list covers page-wide refs. */
+  hideRefList?: boolean;
   serialSlug?: string;
   pageTitles?: Record<string, string>;
   chapterType?: string;
@@ -379,6 +381,7 @@ export function PageReadView(props: PageReadViewProps) {
               sectionKey="infobox"
               markdown={infoboxContent}
               sm
+              hideRefList
               serialSlug={serialSlug}
               pageTitles={pageTitles}
               chapterType={chapterType}

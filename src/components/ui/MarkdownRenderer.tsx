@@ -56,6 +56,8 @@ type MarkdownRendererProps = {
    * When omitted, both maps are computed from this markdown alone.
    */
   refQuotesMap?: Map<string, string[]>;
+  /** Skip the appended reference list (e.g. infobox, whose refs are listed under the body). */
+  hideRefList?: boolean;
 };
 
 const COMPONENTS: Components = {
@@ -126,7 +128,10 @@ const COMPONENTS: Components = {
   ),
   hr: () => <hr className="border-border my-6" />,
   a: ({ href, children }) => (
-    <a href={href} className="text-wiki-link underline hover:text-wiki-link-hover visited:text-wiki-visited">
+    <a
+      href={href}
+      className="text-wiki-link underline hover:text-wiki-link-hover visited:text-wiki-visited"
+    >
       {children}
     </a>
   ),
@@ -176,9 +181,7 @@ const SM_COMPONENTS: Components = {
     </Text>
   ),
   h4: ({ children }) => (
-    <h4 className="text-xs mt-2 mb-1 text-foreground">
-      {children}
-    </h4>
+    <h4 className="text-xs mt-2 mb-1 text-foreground">{children}</h4>
   ),
   p: ({ children }) => (
     <p className="mb-3 text-sm leading-relaxed text-foreground/80">
@@ -219,7 +222,10 @@ function makeAnchorComponent(serialSlug: string): Components["a"] {
   return function WikiAnchor({ href, children }) {
     if (!href?.startsWith(prefix)) {
       return (
-        <a href={href} className="text-wiki-link underline hover:text-wiki-link-hover visited:text-wiki-visited">
+        <a
+          href={href}
+          className="text-wiki-link underline hover:text-wiki-link-hover visited:text-wiki-visited"
+        >
           {children}
         </a>
       );
@@ -258,7 +264,10 @@ function makeAnchorComponent(serialSlug: string): Components["a"] {
     }
 
     return (
-      <a href={href} className="text-wiki-link underline hover:text-wiki-link-hover visited:text-wiki-visited">
+      <a
+        href={href}
+        className="text-wiki-link underline hover:text-wiki-link-hover visited:text-wiki-visited"
+      >
         {children}
       </a>
     );
@@ -338,6 +347,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
     wikiChapters,
     refOrdinalMap,
     refQuotesMap,
+    hideRefList = false,
   } = props;
 
   // Without page-level maps, number refs from this markdown alone.
@@ -365,7 +375,12 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
     ? {
         ...baseComponents,
         a: makeAnchorComponent(serialSlug),
-        sup: makeSupComponent(serialSlug, pageTitles, chapterType, wikiChapters),
+        sup: makeSupComponent(
+          serialSlug,
+          pageTitles,
+          chapterType,
+          wikiChapters,
+        ),
       }
     : baseComponents;
 
@@ -378,14 +393,16 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
       >
         {children}
       </ReactMarkdown>
-      <RefList
-        ordinalMap={ordinalMap}
-        quotesMap={quotesMap}
-        serialSlug={serialSlug}
-        pageTitles={pageTitles}
-        chapterType={chapterType}
-        wikiChapters={wikiChapters}
-      />
+      {!hideRefList && (
+        <RefList
+          ordinalMap={ordinalMap}
+          quotesMap={quotesMap}
+          serialSlug={serialSlug}
+          pageTitles={pageTitles}
+          chapterType={chapterType}
+          wikiChapters={wikiChapters}
+        />
+      )}
     </div>
   );
 }
