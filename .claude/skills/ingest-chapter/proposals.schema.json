@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlotArmor ingest proposals",
+  "description": "Output of /ingest-chapter. Checked by scripts/ingest/validate.mjs (structure mirrored in scripts/ingest/lib/core.mjs).",
+  "type": "object",
+  "required": ["v", "chapterId", "contextSha256", "promptVersion", "synopsis", "newPages", "updates"],
+  "additionalProperties": false,
+  "$defs": {
+    "citation": {
+      "type": "object",
+      "required": ["quote"],
+      "additionalProperties": false,
+      "properties": {
+        "quote": { "type": "string", "minLength": 1, "description": "Verbatim text from the chapter (whitespace/curly quotes are normalized)." },
+        "note": { "type": "string", "description": "What fact this quote supports." }
+      }
+    },
+    "citations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/citation" } },
+    "editOp": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "text"],
+          "properties": { "op": { "const": "append" }, "text": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "anchor", "text"],
+          "properties": {
+            "op": { "const": "insert_after" },
+            "anchor": { "type": "string", "description": "An exact existing line (e.g. '## History') that occurs once. After a heading, text goes at the end of that section." },
+            "text": { "type": "string" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "find", "with"],
+          "properties": {
+            "op": { "const": "replace" },
+            "find": { "type": "string", "description": "Must occur exactly once in the current content." },
+            "with": { "type": "string" }
+          }
+        }
+      ]
+    }
+  },
+  "properties": {
+    "v": { "const": 1 },
+    "chapterId": { "type": "integer", "description": "context.chapter.id" },
+    "contextSha256": { "type": "string", "description": "sha256 hex of the exact context.json bytes." },
+    "promptVersion": { "type": "string", "description": "Short git SHA of the last commit touching .claude/skills/ingest-chapter." },
+    "synopsis": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["content", "citations"],
+          "properties": { "content": { "type": "string" }, "citations": { "$ref": "#/$defs/citations" } }
+        }
+      ]
+    },
+    "newPages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tempId", "title", "aliases", "content", "citations", "changeSummary"],
+        "properties": {
+          "tempId": { "type": "string", "description": "Local id like 'new-1'; referenced by other new pages' parentPageId." },
+          "title": { "type": "string" },
+          "aliases": { "type": "array", "items": { "type": "string" } },
+          "parentPageId": { "type": ["integer", "string"], "description": "Indexed page id, or another new page's tempId. Omit to use the serial home page." },
+          "content": { "type": "string" },
+          "citations": { "$ref": "#/$defs/citations" },
+          "changeSummary": { "type": "string" }
+        }
+      }
+    },
+    "updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pageId", "importance", "edits", "citations", "changeSummary"],
+        "properties": {
+          "pageId": { "type": "integer" },
+          "importance": { "enum": ["major", "minor"] },
+          "edits": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/editOp" } },
+          "citations": { "$ref": "#/$defs/citations" },
+          "changeSummary": { "type": "string" }
+        }
+      }
+    }
+  }
+}
