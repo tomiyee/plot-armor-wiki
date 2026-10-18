@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Text } from "@/components/ui/Text";
 import { getTextMigration } from "@/admin/text-migrations/registry";
-import { fetchTextMigrationApplied } from "@/data/admin/queries";
+import {
+  fetchTextMigrationApplied,
+  hasTextMigrationTables,
+} from "@/data/admin/queries";
+import { MissingTablesNotice } from "../MissingTablesNotice";
+import { getAdminDb, getAdminDbEnv } from "@/lib/admin-db";
 import { previewMigration } from "../actions";
 import { MigrationPreview } from "./MigrationPreview";
 
@@ -26,8 +31,10 @@ export default async function TextMigrationDetailPage(
   if (!migration) notFound();
 
   const page = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const [env, db] = await Promise.all([getAdminDbEnv(), getAdminDb()]);
+  if (!(await hasTextMigrationTables(db))) return <MissingTablesNotice />;
   const [applied, preview] = await Promise.all([
-    fetchTextMigrationApplied(id),
+    fetchTextMigrationApplied(db, id),
     previewMigration(id, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
   ]);
   if ("error" in preview) throw new Error(preview.error);
@@ -36,13 +43,20 @@ export default async function TextMigrationDetailPage(
   return (
     <PageContainer className="max-w-6xl py-12 flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <Link href="/admin/text-migrations" className="text-sm text-primary hover:underline">
+        <Link
+          href="/admin/text-migrations"
+          className="text-sm text-primary hover:underline"
+        >
           ← All migrations
         </Link>
         <Text variant="h1" className="font-mono text-2xl">
           {migration.id}
         </Text>
         <Text muted>{migration.description}</Text>
+        <Text variant="label" muted>
+          Scope: {migration.serialSlug ?? "all serials"} · Target DB:{" "}
+          {env.toUpperCase()}
+        </Text>
         <Text variant="label">
           {applied
             ? `Applied ${applied.appliedAt.toISOString()} (${applied.rowsChanged} rows)`
@@ -57,12 +71,16 @@ export default async function TextMigrationDetailPage(
         rows={preview.rows}
         applied={!!applied}
         total={preview.total}
+        env={env}
       />
 
       {pageCount > 1 && (
         <nav className="flex gap-4 items-center">
           {page > 1 && (
-            <Link href={`?page=${page - 1}`} className="text-primary hover:underline">
+            <Link
+              href={`?page=${page - 1}`}
+              className="text-primary hover:underline"
+            >
               Previous
             </Link>
           )}
@@ -70,7 +88,10 @@ export default async function TextMigrationDetailPage(
             Page {page} of {pageCount}
           </Text>
           {page < pageCount && (
-            <Link href={`?page=${page + 1}`} className="text-primary hover:underline">
+            <Link
+              href={`?page=${page + 1}`}
+              className="text-primary hover:underline"
+            >
               Next
             </Link>
           )}
