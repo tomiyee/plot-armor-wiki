@@ -8,7 +8,7 @@
 #   output-file    — db-snapshots/YYYY-MM-DD_HH-MM-SS.sql  (created under repo root)
 #   container-name — plotarmor-db
 #
-# The script reads DATABASE_URL from .env.local to determine the database name
+# The script reads DEV_DATABASE_URL (or DATABASE_URL) from .env.local to determine the database name
 # and credentials, then runs pg_dump inside the running Docker container.
 
 set -euo pipefail
@@ -30,17 +30,21 @@ if [[ ! -f "$ENV_PATH" ]]; then
 fi
 
 DATABASE_URL=""
-while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" =~ ^DATABASE_URL=(.+)$ ]]; then
-        DATABASE_URL="${BASH_REMATCH[1]}"
-        DATABASE_URL="${DATABASE_URL#\'}" ; DATABASE_URL="${DATABASE_URL%\'}"
-        DATABASE_URL="${DATABASE_URL#\"}" ; DATABASE_URL="${DATABASE_URL%\"}"
-        break
-    fi
-done < "$ENV_PATH"
+# Local scripts target the dev database: prefer DEV_DATABASE_URL, fall back to DATABASE_URL.
+for KEY in DEV_DATABASE_URL DATABASE_URL; do
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ ^$KEY=(.+)$ ]]; then
+            DATABASE_URL="${BASH_REMATCH[1]}"
+            DATABASE_URL="${DATABASE_URL#\'}" ; DATABASE_URL="${DATABASE_URL%\'}"
+            DATABASE_URL="${DATABASE_URL#\"}" ; DATABASE_URL="${DATABASE_URL%\"}"
+            break
+        fi
+    done < "$ENV_PATH"
+    [[ -n "$DATABASE_URL" ]] && break
+done
 
 if [[ -z "$DATABASE_URL" ]]; then
-    echo "error: DATABASE_URL not found in .env.local" >&2
+    echo "error: neither DEV_DATABASE_URL nor DATABASE_URL found in .env.local" >&2
     exit 1
 fi
 

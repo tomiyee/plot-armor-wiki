@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Clone a source Postgres database into the target database from .env.local.
+# Clone one database from .env.local over the other (prod -> dev by default).
 #
 # Usage:
-#   ./scripts/clone-db.sh <source-db-url> [--force]
+#   ./scripts/clone-db.sh [--prod-to-dev | --dev-to-prod] [--force]
 #
 # Arguments:
-#   source-db-url — full connection string, e.g. postgres://user:pass@host:5432/dbname
-#   --force       — skip the confirmation prompt
+#   --prod-to-dev — (default) overwrite DEV_DATABASE_URL with DATABASE_URL data
+#   --dev-to-prod — overwrite DATABASE_URL (production!) with DEV_DATABASE_URL data
+#   --force       — skip the confirmation prompt (prod -> dev only; overwriting
+#                   prod always requires typed confirmation)
 #
-# The target DATABASE_URL is read from .env.local in the repo root.
+# Both DATABASE_URL and DEV_DATABASE_URL are read from .env.local in the repo root.
 #
 # WARNING: This drops and recreates the target database. All existing data
 #          will be permanently deleted.
@@ -19,52 +21,55 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$SCRIPT_DIR/.."
 ENV_PATH="$REPO_ROOT/.env.local"
 
-SOURCE_URL=""
+DIRECTION="prod-to-dev"
 FORCE=false
 
 for arg in "$@"; do
     case "$arg" in
+        --prod-to-dev) DIRECTION="prod-to-dev" ;;
+        --dev-to-prod) DIRECTION="dev-to-prod" ;;
         --force) FORCE=true ;;
-        -*)
-            echo "error: unknown flag '$arg'" >&2
-            exit 1
-            ;;
         *)
-            if [[ -z "$SOURCE_URL" ]]; then
-                SOURCE_URL="$arg"
-            else
-                echo "error: unexpected argument '$arg'" >&2
-                exit 1
-            fi
+            echo "error: unknown argument '$arg'" >&2
+            echo "Usage: ./scripts/clone-db.sh [--prod-to-dev | --dev-to-prod] [--force]" >&2
+            exit 1
             ;;
     esac
 done
 
-if [[ -z "$SOURCE_URL" ]]; then
-    echo "Usage: ./scripts/clone-db.sh <source-db-url> [--force]" >&2
-    exit 1
-fi
-
-# ── Read target from .env.local ───────────────────────────────────────────────
+# ── Read URLs from .env.local ─────────────────────────────────────────────────
 
 if [[ ! -f "$ENV_PATH" ]]; then
     echo "error: .env.local not found at $ENV_PATH" >&2
     exit 1
 fi
 
-TARGET_URL=""
-while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" =~ ^DATABASE_URL=(.+)$ ]]; then
-        TARGET_URL="${BASH_REMATCH[1]}"
-        TARGET_URL="${TARGET_URL#\'}" ; TARGET_URL="${TARGET_URL%\'}"
-        TARGET_URL="${TARGET_URL#\"}" ; TARGET_URL="${TARGET_URL%\"}"
-        break
+read_env() {
+    local key="$1" value=""
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ ^$key=(.+)$ ]]; then
+            value="${BASH_REMATCH[1]}"
+            value="${value#\'}" ; value="${value%\'}"
+            value="${value#\"}" ; value="${value%\"}"
+            break
+        fi
+    done < "$ENV_PATH"
+    if [[ -z "$value" ]]; then
+        echo "error: $key not found in .env.local" >&2
+        exit 1
     fi
-done < "$ENV_PATH"
+    printf '%s' "$value"
+}
 
-if [[ -z "$TARGET_URL" ]]; then
-    echo "error: DATABASE_URL not found in .env.local" >&2
-    exit 1
+PROD_URL="$(read_env DATABASE_URL)"
+DEV_URL="$(read_env DEV_DATABASE_URL)"
+
+if [[ "$DIRECTION" == "prod-to-dev" ]]; then
+    SOURCE_URL="$PROD_URL" TARGET_URL="$DEV_URL"
+    SRC_LABEL="prod" TGT_LABEL="dev"
+else
+    SOURCE_URL="$DEV_URL" TARGET_URL="$PROD_URL"
+    SRC_LABEL="dev" TGT_LABEL="prod"
 fi
 
 # ── Parse URL ─────────────────────────────────────────────────────────────────
@@ -110,11 +115,21 @@ done
 # ── Confirmation ──────────────────────────────────────────────────────────────
 
 echo ""
-echo "  Source : postgres://${SRC_USER}@${SRC_HOST}:${SRC_PORT}/${SRC_NAME}"
-echo "  Target : postgres://${TGT_USER}@${TGT_HOST}:${TGT_PORT}/${TGT_NAME}"
+echo "  Source (${SRC_LABEL}) : postgres://${SRC_USER}@${SRC_HOST}:${SRC_PORT}/${SRC_NAME}"
+echo "  Target (${TGT_LABEL}) : postgres://${TGT_USER}@${TGT_HOST}:${TGT_PORT}/${TGT_NAME}"
 echo ""
 
-if [[ "$FORCE" == false ]]; then
+if [[ "$TGT_LABEL" == "prod" ]]; then
+    echo "!!! DANGER: you are about to OVERWRITE PRODUCTION with dev data. !!!"
+    echo "!!! All live production data will be permanently deleted.        !!!"
+    echo ""
+    read -r -p "Type 'overwrite prod' to continue: " CONFIRM
+    echo ""
+    if [[ "$CONFIRM" != "overwrite prod" ]]; then
+        echo "aborted."
+        exit 0
+    fi
+elif [[ "$FORCE" == false ]]; then
     echo "WARNING: All data in the target database will be permanently replaced."
     echo ""
     read -r -p "Type 'yes' to continue: " CONFIRM

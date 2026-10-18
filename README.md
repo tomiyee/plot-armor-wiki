@@ -110,27 +110,27 @@ Rationale for each decision is in [spec.md § Tech Stack](spec.md#tech-stack).
 npm install
 ```
 
-Create `.env.local` with your database connection string and Auth.js secrets.
-
-**Production/staging:**
+Create `.env.local` (see `.env.local.example`) with your database connection strings and Auth.js secrets.
 
 ```
+DB_ENV=dev                 # "prod" -> DATABASE_URL, "dev" -> DEV_DATABASE_URL (unset = prod)
 DATABASE_URL=postgres://<user>:<password>@<host>/<db>?sslmode=require
-AUTH_SECRET=<random-secret>
-AUTH_GOOGLE_ID=<google-oauth-client-id>
-AUTH_GOOGLE_SECRET=<google-oauth-client-secret>
-AUTH_URL=https://<your-domain>
-```
-
-**Local Docker (development):**
-
-```
-DATABASE_URL=postgres://postgres:secret@localhost:5432/plotarmor
+DEV_DATABASE_URL=postgres://postgres:secret@localhost:5432/plotarmor
 AUTH_SECRET=<random-secret>
 AUTH_GOOGLE_ID=<google-oauth-client-id>
 AUTH_GOOGLE_SECRET=<google-oauth-client-secret>
 AUTH_URL=http://localhost:3000
 ```
+
+`DATABASE_URL` is the production database and is the only one deployments need — `DB_ENV` defaults to `prod`, so existing deployments keep working unchanged. `DEV_DATABASE_URL` and `DB_ENV` are local-only. Override `DB_ENV` per run:
+
+```bash
+npm run dev        # uses DB_ENV from .env.local
+npm run dev:dev    # force DEV_DATABASE_URL
+npm run dev:prod   # force DATABASE_URL (careful: live data)
+```
+
+`drizzle-kit` commands honor `DB_ENV` too (e.g. `DB_ENV=prod npx drizzle-kit migrate`).
 
 Then start the database. For local Docker, run the helper script (PowerShell):
 
@@ -138,7 +138,7 @@ Then start the database. For local Docker, run the helper script (PowerShell):
 .\scripts\start-db.ps1
 ```
 
-The script reads `DATABASE_URL` from `.env.local` and uses those values when creating the container, so credentials are defined in one place. To stop the container: `docker stop plotarmor-db`.
+The script reads `DEV_DATABASE_URL` (falling back to `DATABASE_URL`) from `.env.local` and uses those values when creating the container, so credentials are defined in one place. To stop the container: `docker stop plotarmor-db`.
 
 Apply the database migration:
 

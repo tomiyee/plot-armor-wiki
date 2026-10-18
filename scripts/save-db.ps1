@@ -7,7 +7,7 @@
 #   OutputFile     - db-snapshots\YYYY-MM-DD_HH-MM-SS.sql  (under repo root)
 #   ContainerName  - plotarmor-db
 #
-# The script reads DATABASE_URL from .env.local to determine the database name
+# The script reads DEV_DATABASE_URL (or DATABASE_URL) from .env.local to determine the database name
 # and credentials, then runs pg_dump inside the running Docker container.
 
 param(
@@ -34,15 +34,19 @@ if (-not (Test-Path $envPath)) {
 }
 
 $databaseUrl = $null
-foreach ($line in Get-Content $envPath) {
-    if ($line -match "^DATABASE_URL=(.+)$") {
-        $databaseUrl = $Matches[1].Trim('"').Trim("'")
-        break
+# Local scripts target the dev database: prefer DEV_DATABASE_URL, fall back to DATABASE_URL.
+foreach ($key in @("DEV_DATABASE_URL", "DATABASE_URL")) {
+    foreach ($line in Get-Content $envPath) {
+        if ($line -match "^$key=(.+)$") {
+            $databaseUrl = $Matches[1].Trim('"').Trim("'")
+            break
+        }
     }
+    if ($databaseUrl) { break }
 }
 
 if (-not $databaseUrl) {
-    Write-Error "DATABASE_URL not found in .env.local"
+    Write-Error "Neither DEV_DATABASE_URL nor DATABASE_URL found in .env.local"
     exit 1
 }
 
