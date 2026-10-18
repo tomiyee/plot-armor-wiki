@@ -28,18 +28,6 @@ import {
   getPendingSynopsisSuggestions,
 } from "./synopsisSuggestionActions";
 import type { SuggestionStatus } from "@/types";
-import {
-  addChapter,
-  addVolume,
-  deleteChapter,
-  deleteVolume,
-  renameChapter,
-  renameVolume,
-  reorderVolumes,
-  reorderAllChapters,
-  updateSerialTypes,
-  bulkApplyToc,
-} from "../../actions";
 
 interface ChapterPageProps {
   /** Next.js dynamic route params: `serial` slug and `chapterIdx` string. */
@@ -90,17 +78,6 @@ export default async function ChapterPage(props: ChapterPageProps) {
   const { cutoffIdx } = await getChapterCutoff(serial.id);
 
   const spoilered = chapter.idx > cutoffIdx;
-
-  const addChapterForSerial = addChapter.bind(null, serial.id);
-  const addVolumeForSerial = addVolume.bind(null, serial.id);
-  const deleteChapterForSerial = deleteChapter.bind(null, serial.id);
-  const deleteVolumeForSerial = deleteVolume.bind(null, serial.id);
-  const renameChapterForSerial = renameChapter.bind(null, serial.id);
-  const renameVolumeForSerial = renameVolume.bind(null, serial.id);
-  const reorderVolumesForSerial = reorderVolumes.bind(null, serial.id);
-  const reorderAllChaptersForSerial = reorderAllChapters.bind(null, serial.id);
-  const updateSerialTypesForSerial = updateSerialTypes.bind(null, serial.id);
-  const bulkApplyTocForSerial = bulkApplyToc.bind(null, serial.id);
 
   let synopsisContent = "";
   let wikiPages: { name: string; slug: string }[] = [];
@@ -189,16 +166,6 @@ export default async function ChapterPage(props: ChapterPageProps) {
               chaptersByVolume={chaptersByVolume}
               chapterType={serial.chapterType}
               volumeType={serial.volumeType}
-              addChapterAction={addChapterForSerial}
-              addVolumeAction={addVolumeForSerial}
-              deleteChapterAction={deleteChapterForSerial}
-              deleteVolumeAction={deleteVolumeForSerial}
-              renameChapterAction={renameChapterForSerial}
-              renameVolumeAction={renameVolumeForSerial}
-              reorderVolumesAction={reorderVolumesForSerial}
-              reorderAllChaptersAction={reorderAllChaptersForSerial}
-              updateSerialTypesAction={updateSerialTypesForSerial}
-              bulkApplyTocAction={bulkApplyTocForSerial}
               isAdmin={isAdmin}
             />
           </div>

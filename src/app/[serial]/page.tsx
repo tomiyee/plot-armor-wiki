@@ -1,6 +1,13 @@
 import { notFound } from "next/navigation";
-import { getSerialBySlug, fetchSerialAuthors, fetchSerialAdmins } from "@/data/serials/queries";
-import { getChapterCutoff, getSerialVolumesAndChapters } from "@/data/chapters/queries";
+import {
+  getSerialBySlug,
+  fetchSerialAuthors,
+  fetchSerialAdmins,
+} from "@/data/serials/queries";
+import {
+  getChapterCutoff,
+  getSerialVolumesAndChapters,
+} from "@/data/chapters/queries";
 import {
   resolvePageTitlesAtIdx,
   fetchSerialPagesAtIdx,
@@ -21,17 +28,7 @@ import type {
   PageTitleEntry,
 } from "@/types";
 import {
-  addChapter,
-  addVolume,
-  deleteChapter,
-  deleteVolume,
-  renameChapter,
-  renameVolume,
-  updateSerialTypes,
-  reorderVolumes,
-  reorderAllChapters,
   updateSerialMetadata,
-  bulkApplyToc,
   createTemplate,
   deleteTemplate,
   renameTemplate,
@@ -50,7 +47,6 @@ import { Box } from "@/components/ui/Box";
 import { PageContainer } from "@/components/ui/PageContainer";
 import { Text } from "@/components/ui/Text";
 import { SerialMetadataEditor } from "@/components/SerialMetadataEditor";
-import { SerialTOCSidebar } from "@/components/SerialTOCSidebar";
 import { PageEditor } from "./[page]/PageEditor";
 import { TemplateManager } from "@/components/TemplateManager";
 import { AdminManager } from "@/components/AdminManager";
@@ -117,16 +113,6 @@ export default async function SerialPage(props: SerialPageProps) {
   });
 
   const updateMetadataForSerial = updateSerialMetadata.bind(null, serial.id);
-  const addVolumeForSerial = addVolume.bind(null, serial.id);
-  const addChapterForSerial = addChapter.bind(null, serial.id);
-  const deleteChapterForSerial = deleteChapter.bind(null, serial.id);
-  const deleteVolumeForSerial = deleteVolume.bind(null, serial.id);
-  const renameChapterForSerial = renameChapter.bind(null, serial.id);
-  const renameVolumeForSerial = renameVolume.bind(null, serial.id);
-  const reorderVolumesForSerial = reorderVolumes.bind(null, serial.id);
-  const reorderAllChaptersForSerial = reorderAllChapters.bind(null, serial.id);
-  const updateSerialTypesForSerial = updateSerialTypes.bind(null, serial.id);
-  const bulkApplyTocForSerial = bulkApplyToc.bind(null, serial.id);
 
   // Admin actions bound to this serial.
   const addAdminForSerial = addSerialAdmin.bind(null, serial.id);
@@ -137,16 +123,27 @@ export default async function SerialPage(props: SerialPageProps) {
   const createTemplateForSerial = createTemplate.bind(null, serial.id);
   const deleteTemplateForSerial = deleteTemplate.bind(null, serial.id);
   const renameTemplateForSerial = renameTemplate.bind(null, serial.id);
-  const toggleTemplateInfoboxForSerial = toggleTemplateInfobox.bind(null, serial.id);
-  const addTemplateSectionForSerial = addTemplateSection.bind(null, serial.id);
-  const deleteTemplateSectionForSerial = deleteTemplateSection.bind(null, serial.id);
-  const reorderTemplateSectionsForSerial = reorderTemplateSections.bind(null, serial.id);
-  const addTemplateInfoboxSectionForSerial = addTemplateInfoboxSection.bind(null, serial.id);
-  const deleteTemplateInfoboxSectionForSerial = deleteTemplateInfoboxSection.bind(null, serial.id);
-  const reorderTemplateInfoboxSectionsForSerial = reorderTemplateInfoboxSections.bind(
+  const toggleTemplateInfoboxForSerial = toggleTemplateInfobox.bind(
     null,
     serial.id,
   );
+  const addTemplateSectionForSerial = addTemplateSection.bind(null, serial.id);
+  const deleteTemplateSectionForSerial = deleteTemplateSection.bind(
+    null,
+    serial.id,
+  );
+  const reorderTemplateSectionsForSerial = reorderTemplateSections.bind(
+    null,
+    serial.id,
+  );
+  const addTemplateInfoboxSectionForSerial = addTemplateInfoboxSection.bind(
+    null,
+    serial.id,
+  );
+  const deleteTemplateInfoboxSectionForSerial =
+    deleteTemplateInfoboxSection.bind(null, serial.id);
+  const reorderTemplateInfoboxSectionsForSerial =
+    reorderTemplateInfoboxSections.bind(null, serial.id);
 
   const headChapterId = chapterList.at(-1)?.id ?? null;
   const volumeNameById = new Map(volumeList.map((v) => [v.id, v.displayName]));
@@ -186,12 +183,13 @@ export default async function SerialPage(props: SerialPageProps) {
   let homePageTitleEntries: PageTitleEntry[] = [];
 
   if (homePage) {
-    const [rawSections, infobox, fetchedChildPages, titleEntries] = await Promise.all([
-      fetchPageSectionsAtIdx(homePage.id, cutoffIdx),
-      fetchPageInfoboxAtIdx(homePage.id, cutoffIdx),
-      fetchPageChildPagesAtIdx(homePage.id, cutoffIdx),
-      fetchPageTitleEntries(homePage.id),
-    ]);
+    const [rawSections, infobox, fetchedChildPages, titleEntries] =
+      await Promise.all([
+        fetchPageSectionsAtIdx(homePage.id, cutoffIdx),
+        fetchPageInfoboxAtIdx(homePage.id, cutoffIdx),
+        fetchPageChildPagesAtIdx(homePage.id, cutoffIdx),
+        fetchPageTitleEntries(homePage.id),
+      ]);
 
     pageSectionStructure = rawSections;
     sections = rawSections;
@@ -203,172 +201,151 @@ export default async function SerialPage(props: SerialPageProps) {
   }
 
   return (
-    <main className="size-full">
+    <main className="size-full relative max-w-(--content-width)">
       <EditModeAdminSetter isAdmin={isAdmin} />
-      <div className="max-w-(--content-width) mx-auto w-full px-4 py-6 flex gap-6">
-        {/* Left sidebar - sticky, independent scroll, desktop only */}
-        <aside className="hidden md:block w-56 shrink-0">
-          <div className="sticky top-6 overflow-y-auto max-h-[calc(var(--scroll-area-h)-1.5rem)] pr-1">
-            <SerialTOCSidebar
-              serialId={serial.id}
-              serialSlug={serialSlug}
-              volumes={volumeList}
-              chaptersByVolume={chaptersByVolume}
-              chapterType={serial.chapterType}
-              volumeType={serial.volumeType}
-              readingChapterId={readingChapterId}
-              addChapterAction={addChapterForSerial}
-              addVolumeAction={addVolumeForSerial}
-              deleteChapterAction={deleteChapterForSerial}
-              deleteVolumeAction={deleteVolumeForSerial}
-              renameChapterAction={renameChapterForSerial}
-              renameVolumeAction={renameVolumeForSerial}
-              reorderVolumesAction={reorderVolumesForSerial}
-              reorderAllChaptersAction={reorderAllChaptersForSerial}
-              updateSerialTypesAction={updateSerialTypesForSerial}
-              bulkApplyTocAction={bulkApplyTocForSerial}
-              isAdmin={isAdmin}
-            />
-          </div>
-        </aside>
+      <PageContainer className="flex-1 min-w-0 mx-0 px-0 py-0">
+        <Box col className="gap-6">
+          <SerialMetadataEditor
+            title={serial.title}
+            splashArtUrl={serial.splashArtUrl}
+            authors={authors}
+            updateMetadataAction={updateMetadataForSerial}
+            isAdmin={isAdmin}
+          />
 
-        {/* Main content */}
-        <PageContainer className="flex-1 min-w-0 mx-0 px-0 py-0">
-          <Box col className="gap-6">
-            <SerialMetadataEditor
-              title={serial.title}
-              splashArtUrl={serial.splashArtUrl}
-              authors={authors}
-              updateMetadataAction={updateMetadataForSerial}
-              isAdmin={isAdmin}
-            />
-
-            {isAdmin &&
-              pendingSuggestionsByPage.length > 0 &&
-              (() => {
-                const total = pendingSuggestionsByPage.reduce(
-                  (s, p) => s + p.count,
-                  0,
-                );
-                return (
-                  <Accordion className="rounded-md border border-amber-400/40 bg-amber-50/50 dark:bg-amber-950/20 px-3 text-amber-700 dark:text-amber-400">
-                    <AccordionItem
-                      value="pending-suggestions"
-                      className="border-none"
-                    >
-                      <AccordionTrigger className="text-sm font-medium hover:no-underline">
-                        <span>
-                          <span className="font-semibold">{total}</span> pending{" "}
-                          {total === 1 ? "suggestion" : "suggestions"} across{" "}
-                          <span className="font-semibold">
-                            {pendingSuggestionsByPage.length}
-                          </span>{" "}
-                          {pendingSuggestionsByPage.length === 1
-                            ? "page"
-                            : "pages"}
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <ul className="flex flex-col gap-1 pt-1">
-                          {pendingSuggestionsByPage.map((p) => (
-                            <li
-                              key={p.pageId}
-                              className="flex items-center justify-between text-sm"
+          {isAdmin &&
+            pendingSuggestionsByPage.length > 0 &&
+            (() => {
+              const total = pendingSuggestionsByPage.reduce(
+                (s, p) => s + p.count,
+                0,
+              );
+              return (
+                <Accordion className="rounded-md border border-amber-400/40 bg-amber-50/50 dark:bg-amber-950/20 px-3 text-amber-700 dark:text-amber-400">
+                  <AccordionItem
+                    value="pending-suggestions"
+                    className="border-none"
+                  >
+                    <AccordionTrigger className="text-sm font-medium hover:no-underline">
+                      <span>
+                        <span className="font-semibold">{total}</span> pending{" "}
+                        {total === 1 ? "suggestion" : "suggestions"} across{" "}
+                        <span className="font-semibold">
+                          {pendingSuggestionsByPage.length}
+                        </span>{" "}
+                        {pendingSuggestionsByPage.length === 1
+                          ? "page"
+                          : "pages"}
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <ul className="flex flex-col gap-1 pt-1">
+                        {pendingSuggestionsByPage.map((p) => (
+                          <li
+                            key={p.pageId}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <a
+                              href={`/${serialSlug}/${p.pageSlug}`}
+                              className="hover:underline font-medium"
                             >
-                              <a
-                                href={`/${serialSlug}/${p.pageSlug}`}
-                                className="hover:underline font-medium"
-                              >
-                                {p.pageName}
-                              </a>
-                              <span className="text-xs text-amber-600 dark:text-amber-500">
-                                {p.count}{" "}
-                                {p.count === 1 ? "suggestion" : "suggestions"}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                );
-              })()}
+                              {p.pageName}
+                            </a>
+                            <span className="text-xs text-amber-600 dark:text-amber-500">
+                              {p.count}{" "}
+                              {p.count === 1 ? "suggestion" : "suggestions"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+              );
+            })()}
 
-            {homePage ? (
-              <PageEditor
-                serialSlug={serialSlug}
-                pageSlug={homePage.slug}
-                pageId={homePage.id}
-                pageTitleEntries={homePageTitleEntries}
-                pageSectionStructure={pageSectionStructure}
-                sections={sections}
-                infoboxSectionStructure={infoboxSectionStructure}
-                floaterImageUrl={floaterImageUrl}
-                floaterRows={floaterRows}
-                allChapters={allChapters}
-                headChapterId={headChapterId}
-                readingChapterId={readingChapterId}
-                wikiPages={wikiPages}
-                pageTitles={wikiPageTitles}
-                wikiChapters={allChapters.map((c) => ({
-                  name: c.displayName,
-                  idx: c.idx,
-                }))}
-                chapterType={serial.chapterType}
-                introChapterId={null}
-                introChapterIdx={null}
-                childPages={childPages}
-                parentPages={[]}
-                allSerialPages={[]}
-                isHomePage
-                isAdmin={isAdmin}
-                isAuthenticated={isUserAuthenticated}
-                subPagesAdornment={
-                  isAdmin && deletedPages.length > 0 ? (
-                    <DeletedPagesButton
-                      serialSlug={serialSlug}
-                      deletedPages={deletedPages.map((p) => ({
-                        id: p.id,
-                        name: p.name,
-                        slug: p.slug,
-                        deletedAt: p.deletedAt,
-                        deletionReason: p.deletionReason,
-                      }))}
-                    />
-                  ) : undefined
-                }
-                editModeHeader={
-                  <>
-                    <AdminManager
-                      serialId={serial.id}
-                      currentUserId={session?.user?.id ?? ""}
-                      admins={serialAdminList}
-                      addAdminAction={addAdminForSerial}
-                      removeAdminAction={removeAdminForSerial}
-                      searchUsersAction={searchUsersForThisSerial}
-                    />
-                    <TemplateManager
-                      templates={serialTemplates}
-                      createTemplateAction={createTemplateForSerial}
-                      deleteTemplateAction={deleteTemplateForSerial}
-                      renameTemplateAction={renameTemplateForSerial}
-                      toggleTemplateInfoboxAction={toggleTemplateInfoboxForSerial}
-                      addTemplateSectionAction={addTemplateSectionForSerial}
-                      deleteTemplateSectionAction={deleteTemplateSectionForSerial}
-                      reorderTemplateSectionAction={reorderTemplateSectionsForSerial}
-                      addTemplateInfoboxSectionAction={addTemplateInfoboxSectionForSerial}
-                      deleteTemplateInfoboxSectionAction={deleteTemplateInfoboxSectionForSerial}
-                      reorderTemplateInfoboxSectionAction={reorderTemplateInfoboxSectionsForSerial}
-                    />
-                  </>
-                }
-              />
-            ) : (
-              <Text muted>Home page not found.</Text>
-            )}
-          </Box>
-        </PageContainer>
-      </div>
+          {homePage ? (
+            <PageEditor
+              serialSlug={serialSlug}
+              pageSlug={homePage.slug}
+              pageId={homePage.id}
+              pageTitleEntries={homePageTitleEntries}
+              pageSectionStructure={pageSectionStructure}
+              sections={sections}
+              infoboxSectionStructure={infoboxSectionStructure}
+              floaterImageUrl={floaterImageUrl}
+              floaterRows={floaterRows}
+              allChapters={allChapters}
+              headChapterId={headChapterId}
+              readingChapterId={readingChapterId}
+              wikiPages={wikiPages}
+              pageTitles={wikiPageTitles}
+              wikiChapters={allChapters.map((c) => ({
+                name: c.displayName,
+                idx: c.idx,
+              }))}
+              chapterType={serial.chapterType}
+              introChapterId={null}
+              introChapterIdx={null}
+              childPages={childPages}
+              parentPages={[]}
+              allSerialPages={[]}
+              isHomePage
+              isAdmin={isAdmin}
+              isAuthenticated={isUserAuthenticated}
+              subPagesAdornment={
+                isAdmin && deletedPages.length > 0 ? (
+                  <DeletedPagesButton
+                    serialSlug={serialSlug}
+                    deletedPages={deletedPages.map((p) => ({
+                      id: p.id,
+                      name: p.name,
+                      slug: p.slug,
+                      deletedAt: p.deletedAt,
+                      deletionReason: p.deletionReason,
+                    }))}
+                  />
+                ) : undefined
+              }
+              editModeHeader={
+                <>
+                  <AdminManager
+                    serialId={serial.id}
+                    currentUserId={session?.user?.id ?? ""}
+                    admins={serialAdminList}
+                    addAdminAction={addAdminForSerial}
+                    removeAdminAction={removeAdminForSerial}
+                    searchUsersAction={searchUsersForThisSerial}
+                  />
+                  <TemplateManager
+                    templates={serialTemplates}
+                    createTemplateAction={createTemplateForSerial}
+                    deleteTemplateAction={deleteTemplateForSerial}
+                    renameTemplateAction={renameTemplateForSerial}
+                    toggleTemplateInfoboxAction={toggleTemplateInfoboxForSerial}
+                    addTemplateSectionAction={addTemplateSectionForSerial}
+                    deleteTemplateSectionAction={deleteTemplateSectionForSerial}
+                    reorderTemplateSectionAction={
+                      reorderTemplateSectionsForSerial
+                    }
+                    addTemplateInfoboxSectionAction={
+                      addTemplateInfoboxSectionForSerial
+                    }
+                    deleteTemplateInfoboxSectionAction={
+                      deleteTemplateInfoboxSectionForSerial
+                    }
+                    reorderTemplateInfoboxSectionAction={
+                      reorderTemplateInfoboxSectionsForSerial
+                    }
+                  />
+                </>
+              }
+            />
+          ) : (
+            <Text muted>Home page not found.</Text>
+          )}
+        </Box>
+      </PageContainer>
     </main>
   );
 }

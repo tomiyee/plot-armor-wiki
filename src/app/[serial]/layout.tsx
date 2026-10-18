@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 import { getSerialBySlug } from "@/data/serials/queries";
-import { getSerialVolumesAndChapters, getUserProgress } from "@/data/chapters/queries";
+import {
+  getSerialVolumesAndChapters,
+  getUserProgress,
+} from "@/data/chapters/queries";
 import { isSerialAdmin } from "@/lib/auth-guard";
 import { fetchSerialHomePage, getHomePageChildren } from "@/data/pages/queries";
 import { ChapterSelector } from "@/components/ChapterSelector";
@@ -9,6 +12,7 @@ import { SerialTOC } from "@/components/SerialTOC";
 import { SerialTOCDrawer } from "@/components/SerialTOCDrawer";
 import { ChapterRow, NavbarSerialData } from "@/types";
 import { auth } from "@/auth";
+import { SerialTOCSidebar } from "@/components/SerialTOCSidebar";
 
 interface SerialLayoutProps {
   /** Route segment children rendered inside the layout. */
@@ -43,9 +47,13 @@ export default async function SerialLayout(props: SerialLayoutProps) {
     isSerialAdmin(serial.id),
   ]);
 
-  const chaptersByVolume: Partial<Record<number, ChapterRow[]>> = {
-    ...Object.groupBy(chapterList, (c) => c.volumeId),
-  };
+  // Every volume gets an entry (even empty ones) so SerialEditor can render it.
+  const chaptersByVolume: Record<number, ChapterRow[]> = Object.fromEntries(
+    volumeList.map((v) => [v.id, []]),
+  );
+  for (const c of chapterList) {
+    chaptersByVolume[c.volumeId]?.push(c);
+  }
 
   // Priority (1): authenticated user's DB progress for this serial.
   // Priority (2): cookie/localStorage handled client-side by ChapterSelector.
@@ -95,7 +103,21 @@ export default async function SerialLayout(props: SerialLayoutProps) {
         tocSlot={<SerialTOCDrawer key="toc-drawer" tocContent={tocContent} />}
         tocContent={tocContent}
       />
-      <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <aside className="hidden md:block w-60 shrink-0 sticky">
+          <SerialTOCSidebar
+            serialId={serial.id}
+            serialSlug={serialSlug}
+            volumes={volumeList}
+            chaptersByVolume={chaptersByVolume}
+            chapterType={serial.chapterType}
+            volumeType={serial.volumeType}
+            readingChapterId={dbChapterId}
+            isAdmin={adminStatus}
+          />
+        </aside>
+        {children}
+      </div>
     </>
   );
 }
