@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { isSiteAdmin } from "@/lib/auth-guard";
+import { getAdminDbEnv } from "@/lib/admin-db";
+import { AdminDbToggle } from "./AdminDbToggle";
 
 type AdminLayoutProps = {
   /** Admin tool page. */
@@ -15,5 +17,10 @@ type AdminLayoutProps = {
 export default async function AdminLayout(props: AdminLayoutProps) {
   const { children } = props;
   if (!(await isSiteAdmin())) notFound();
-  return <main className="flex-1 min-h-0 overflow-y-scroll">{children}</main>;
+  return (
+    <main className="flex-1 min-h-0 overflow-y-scroll">
+      <AdminDbToggle env={await getAdminDbEnv()} />
+      {children}
+    </main>
+  );
 }
