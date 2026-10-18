@@ -3,7 +3,8 @@
 ## Commands
 
 ```bash
-npm run dev                          # start Next.js dev server
+npm run dev                          # start Next.js dev server (DB from DB_ENV)
+npm run dev:dev / dev:prod           # force DEV_DATABASE_URL / DATABASE_URL
 rtk npm run build                    # production build
 rtk npm run lint                     # run ESLint
 rtk npx drizzle-kit generate         # generate migration after schema changes
@@ -27,7 +28,9 @@ rtk read <file>       # instead of: cat <file>
 
 Whenever `src/db/schema.ts` changes: generate migration → apply → commit schema + migration + `drizzle/meta/` together.
 
-Local dev: set `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, and `AUTH_URL` in `.env.local`, then `.\scripts\start-db.ps1` to create/start the Postgres container.
+Database selection: `DB_ENV=prod|dev` (unset = prod) picks `DATABASE_URL` (prod; the only var deployments need) or `DEV_DATABASE_URL`, via `resolveDatabaseUrl()` in `src/db/url.ts`. Never read `process.env.DATABASE_URL` directly.
+
+Local dev: set `DB_ENV`, `DATABASE_URL`, `DEV_DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, and `AUTH_URL` in `.env.local`, then `.\scripts\start-db.ps1` to create/start the Postgres container.
 
 No test runner configured.
 

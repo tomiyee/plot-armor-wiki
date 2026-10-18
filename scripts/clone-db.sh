@@ -8,7 +8,7 @@
 #   source-db-url — full connection string, e.g. postgres://user:pass@host:5432/dbname
 #   --force       — skip the confirmation prompt
 #
-# The target DATABASE_URL is read from .env.local in the repo root.
+# The target DEV_DATABASE_URL (falling back to DATABASE_URL) is read from .env.local in the repo root.
 #
 # WARNING: This drops and recreates the target database. All existing data
 #          will be permanently deleted.
@@ -53,17 +53,21 @@ if [[ ! -f "$ENV_PATH" ]]; then
 fi
 
 TARGET_URL=""
-while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" =~ ^DATABASE_URL=(.+)$ ]]; then
-        TARGET_URL="${BASH_REMATCH[1]}"
-        TARGET_URL="${TARGET_URL#\'}" ; TARGET_URL="${TARGET_URL%\'}"
-        TARGET_URL="${TARGET_URL#\"}" ; TARGET_URL="${TARGET_URL%\"}"
-        break
-    fi
-done < "$ENV_PATH"
+# Local scripts target the dev database: prefer DEV_DATABASE_URL, fall back to DATABASE_URL.
+for KEY in DEV_DATABASE_URL DATABASE_URL; do
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ ^$KEY=(.+)$ ]]; then
+            TARGET_URL="${BASH_REMATCH[1]}"
+            TARGET_URL="${TARGET_URL#\'}" ; TARGET_URL="${TARGET_URL%\'}"
+            TARGET_URL="${TARGET_URL#\"}" ; TARGET_URL="${TARGET_URL%\"}"
+            break
+        fi
+    done < "$ENV_PATH"
+    [[ -n "$TARGET_URL" ]] && break
+done
 
 if [[ -z "$TARGET_URL" ]]; then
-    echo "error: DATABASE_URL not found in .env.local" >&2
+    echo "error: neither DEV_DATABASE_URL nor DATABASE_URL found in .env.local" >&2
     exit 1
 fi
 

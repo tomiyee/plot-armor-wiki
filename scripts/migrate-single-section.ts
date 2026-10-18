@@ -52,14 +52,9 @@ import {
   pageInfoboxContentRevisions,
   pageSuggestions,
 } from "../src/db/schema";
+import { resolveDatabaseUrl } from "../src/db/url";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL is not set - populate .env.local before running this script.",
-  );
-}
-
-const client = postgres(process.env.DATABASE_URL);
+const client = postgres(resolveDatabaseUrl());
 const db = drizzle(client);
 
 type LegacySection = { id: number; name: string; displayOrder: number };

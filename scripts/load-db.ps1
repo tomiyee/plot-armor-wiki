@@ -40,15 +40,19 @@ if (-not (Test-Path $envPath)) {
 }
 
 $databaseUrl = $null
-foreach ($line in Get-Content $envPath) {
-    if ($line -match "^DATABASE_URL=(.+)$") {
-        $databaseUrl = $Matches[1].Trim('"').Trim("'")
-        break
+# Local scripts target the dev database: prefer DEV_DATABASE_URL, fall back to DATABASE_URL.
+foreach ($key in @("DEV_DATABASE_URL", "DATABASE_URL")) {
+    foreach ($line in Get-Content $envPath) {
+        if ($line -match "^$key=(.+)$") {
+            $databaseUrl = $Matches[1].Trim('"').Trim("'")
+            break
+        }
     }
+    if ($databaseUrl) { break }
 }
 
 if (-not $databaseUrl) {
-    Write-Error "DATABASE_URL not found in .env.local"
+    Write-Error "Neither DEV_DATABASE_URL nor DATABASE_URL found in .env.local"
     exit 1
 }
 

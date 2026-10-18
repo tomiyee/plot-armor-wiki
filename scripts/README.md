@@ -8,9 +8,11 @@ This directory holds scripts for local development, database management, and one
 
 This script loads `.env.local` and then runs `next dev --turbo`. Start it with `npm run dev`. It uses the `PORT` environment variable if you set one. The default port is `3000`.
 
+It picks the database from `DB_ENV` (`prod` → `DATABASE_URL`, `dev` → `DEV_DATABASE_URL`; unset means `prod`) and prints which one it uses. Pass `--db=prod` or `--db=dev` to override `.env.local` for one run, or use the shortcuts `npm run dev:prod` and `npm run dev:dev`. The script exits with an error if the selected URL is not set.
+
 ## Local Postgres (Docker)
 
-Each database script has a Bash version (`.sh`) and a PowerShell version (`.ps1`). Use the version that matches your shell. All versions read `DATABASE_URL` from `.env.local` in the repo root to get the credentials and database name. By default, all versions use a Docker container named `plotarmor-db`.
+Each database script has a Bash version (`.sh`) and a PowerShell version (`.ps1`). Use the version that matches your shell. All versions read `DEV_DATABASE_URL` (falling back to `DATABASE_URL`) from `.env.local` in the repo root to get the credentials and database name. By default, all versions use a Docker container named `plotarmor-db`.
 
 ### `start-db.sh` / `start-db.ps1`
 
@@ -22,7 +24,7 @@ This script starts the local Postgres container. On the first run, it creates th
 ```
 
 - If the container does not exist, the script creates it. If the container exists but is stopped, the script starts it. If the container already runs, the script does nothing.
-- This script works for local Docker only. If `DATABASE_URL` does not point at `localhost` or `127.0.0.1`, the script shows a warning but continues.
+- This script works for local Docker only. If the URL does not point at `localhost` or `127.0.0.1`, the script shows a warning but continues.
 
 ### `save-db.sh` / `save-db.ps1`
 
@@ -50,7 +52,7 @@ This script restores a SQL dump into the running container. Use a dump file that
 
 ### `clone-db.sh`
 
-This script clones a source Postgres database into the local `DATABASE_URL` target. It dumps and restores the database in one step, with no intermediate file left on disk.
+This script clones a source Postgres database into the local `DEV_DATABASE_URL` (or `DATABASE_URL`) target. It dumps and restores the database in one step, with no intermediate file left on disk.
 
 ```bash
 ./scripts/clone-db.sh <source-db-url> [--force]
