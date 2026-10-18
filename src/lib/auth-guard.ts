@@ -122,3 +122,41 @@ export async function requireSerialAdminByPageId(
 
   return requireSerialAdmin(serialId);
 }
+
+function siteAdminEmails(): string[] {
+  return (process.env.SITE_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/**
+ * Returns `true` only when admin tooling is enabled for this process
+ * (`ADMIN_TOOLS_ENABLED === "true"`, set locally and never on Vercel) AND the
+ * session user's email is listed in `SITE_ADMIN_EMAILS`. Never throws.
+ * Use `requireSiteAdmin` in Server Actions.
+ */
+export async function isSiteAdmin(): Promise<boolean> {
+  if (process.env.ADMIN_TOOLS_ENABLED !== "true") return false;
+  const session = await auth();
+  const email = session?.user?.email?.toLowerCase();
+  if (!email) return false;
+  return siteAdminEmails().includes(email);
+}
+
+/**
+ * Throwing counterpart of `isSiteAdmin`. Call at the top of every `/admin`
+ * Server Action; the layout gate alone does not protect actions, which are
+ * independently callable endpoints.
+ */
+export async function requireSiteAdmin(): Promise<string> {
+  if (process.env.ADMIN_TOOLS_ENABLED !== "true")
+    throw new Error("Unauthorized: admin tools are disabled.");
+  const session = await auth();
+  const email = session?.user?.email?.toLowerCase();
+  if (!session?.user?.id || !email)
+    throw new Error("Unauthorized: sign in to perform this action.");
+  if (!siteAdminEmails().includes(email))
+    throw new Error("Unauthorized: you are not a site admin.");
+  return session.user.id;
+}
