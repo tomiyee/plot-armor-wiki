@@ -50,6 +50,13 @@
       "when": 1785018670171,
       "tag": "0006_drop_legacy_per_section_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792347641126,
+      "tag": "0007_add_text_migrations",
+      "breakpoints": true
     }
   ]
 }
