@@ -2,7 +2,7 @@
  * Exports a spoiler-safe context.json for the /ingest-chapter Claude Code skill.
  *
  *   npx tsx scripts/ingest/export-context.ts --serial wandering-inn <capture.json | --clipboard> [--chapter "9.12 E"]
- *     [--include cave-dragon,an-abandoned-inn]
+ *     [--include cave-dragon,an-abandoned-inn] [--db=dev|prod]
  *
  * 1. Reads the bookmarklet capture (file or clipboard).
  * 2. Detects the matching chapter (title, then URL slug) and ALWAYS asks for
@@ -15,7 +15,7 @@
  * missed. A page not yet introduced at chapter N is still read at idx N, so
  * only its title and any revisions at or before N are exported.
  */
-import "./lib/env";
+import { dbEnv } from "./lib/env";
 import { execSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -27,7 +27,7 @@ import {
 } from "@/data/chapters/queries";
 import { countPageContentRevisionsAtChapter, fetchSerialHomePage } from "@/data/pages/queries";
 import { buildContextPages, findRelatedPages, loadPageNames, mentions, withParents } from "./lib/contextPages";
-import { sha256 } from "./lib/core.mjs";
+import { sha256 } from "@/admin/ingestion/core";
 import { chapterDirName, rankChapters } from "./lib/chapterMatch";
 
 type Capture = {
@@ -206,6 +206,8 @@ async function main() {
 
   const context = {
     v: 1,
+    // The review UI refuses to apply this batch to a different database.
+    dbEnv,
     serial: { id: serial.id, slug: serial.slug, name: serial.title },
     chapter: {
       id: chapter.id,

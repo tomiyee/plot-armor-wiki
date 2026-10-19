@@ -1,17 +1,34 @@
 /**
- * Pure, dependency-free ingest logic shared by `validate.mjs` (run by the
- * Claude Code skill with plain `node`) and `review.ts` (run with tsx).
- * Keep this file plain JS with no imports beyond node builtins.
+ * Pure ingest validation logic shared by the CLI validator
+ * (`scripts/ingest/validate.ts`, run by the /ingest-chapter skill) and the
+ * `/admin/ingestion` review UI, so both judge proposals the same way.
+ * No database access: callers pass in `livePages` when they have them.
  */
 import { createHash } from "node:crypto";
+import { CELL_LIST_RE, encodeCellItem, parseCellListBody } from "@/lib/cell-lists";
+import { encodeRefQuote, REF_RE } from "@/lib/refs";
+import { titleToSlug } from "@/lib/slug";
+import type {
+  EditOp,
+  IngestCitation,
+  IngestContext,
+  IngestItem,
+  LinkTarget,
+  LivePage,
+  NewPageProposal,
+  Proposals,
+  VerifiedCitation,
+} from "./types";
+
+export { encodeRefQuote };
 
 /** sha256 hex of a string or buffer. */
-export function sha256(data) {
+export function sha256(data: string | Buffer): string {
   return createHash("sha256").update(data).digest("hex");
 }
 
 /** Collapses all whitespace runs to single spaces and normalizes curly quotes/dashes. */
-export function normalizeWs(s) {
+export function normalizeWs(s: string): string {
   return s
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
@@ -22,11 +39,11 @@ export function normalizeWs(s) {
 }
 
 /** Lowercased title key used for link/title resolution. */
-export function titleKey(s) {
+export function titleKey(s: string): string {
   return normalizeWs(s).toLowerCase();
 }
 
-function countOccurrences(haystack, needle) {
+function countOccurrences(haystack: string, needle: string): number {
   if (!needle) return 0;
   let n = 0;
   let i = haystack.indexOf(needle);
@@ -38,8 +55,8 @@ function countOccurrences(haystack, needle) {
 }
 
 /**
- * Applies edit operations to `base`. Returns `{ body, errors }`; on any error
- * the failing op is skipped (the review UI marks the proposal "needs manual edit").
+ * Applies edit operations to `base`. On any error the failing op is skipped
+ * (the review UI marks the proposal "needs manual edit").
  *
  * - append:       adds `text` to the end, separated by a blank line.
  * - insert_after: `anchor` is an exact line (e.g. a `## Heading`) that must
@@ -48,9 +65,9 @@ function countOccurrences(haystack, needle) {
  *                 heading line.
  * - replace:      `find` must occur exactly once.
  */
-export function applyEdits(base, edits) {
+export function applyEdits(base: string, edits: EditOp[]): { body: string; errors: string[] } {
   let body = base;
-  const errors = [];
+  const errors: string[] = [];
   edits.forEach((e, i) => {
     if (e.op === "append") {
       body = body.trim() ? `${body.replace(/\s+$/, "")}\n\n${e.text.trim()}` : e.text.trim();
@@ -64,8 +81,7 @@ export function applyEdits(base, edits) {
         return;
       }
       let at = matches[0];
-      const isHeading = /^#{1,6}\s/.test(lines[at].trim());
-      if (isHeading) {
+      if (/^#{1,6}\s/.test(lines[at].trim())) {
         // Insert at the end of the section that the heading opens.
         let j = at + 1;
         while (j < lines.length && !/^#{1,6}\s/.test(lines[j].trim())) j++;
@@ -82,34 +98,27 @@ export function applyEdits(base, edits) {
       }
       body = body.replace(e.find, () => e.with);
     } else {
-      errors.push(`edit ${i}: unknown op ${JSON.stringify(e.op)}`);
+      errors.push(`edit ${i}: unknown op ${JSON.stringify((e as { op: unknown }).op)}`);
     }
   });
   return { body, errors };
 }
 
-// Mirrors src/lib/cell-lists.ts (this file must stay import-free). Keep in sync.
-const CELL_LIST_RE = /\{\{list:([^}]*)\}\}/g;
+const decodePct = (s: string) => s.replace(/%([0-9A-Fa-f]{2})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
 
 /**
  * Decodes the table-cell syntax that hides links and refs from a plain scan: each
  * `{{list:a;b}}` becomes its decoded items, one per line, and `\|` becomes `|`.
  */
-export function expandTableCells(md) {
+export function expandTableCells(md: string): string {
   return md
-    .replace(CELL_LIST_RE, (_m, body) =>
-      body
-        .split(";")
-        .map((raw) => raw.replace(/%([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16))).trim())
-        .filter(Boolean)
-        .join("\n"),
-    )
+    .replace(CELL_LIST_RE, (_m, body: string) => parseCellListBody(body).join("\n"))
     .replace(/\\\|/g, "|");
 }
 
 /** Returns the target names of every `[[page:...]]` / `[[Name]]` link and `{{ref|page:...}}` citation (not chapter links). */
-export function extractPageLinks(md) {
-  const out = [];
+export function extractPageLinks(md: string): string[] {
+  const out: string[] = [];
   md = expandTableCells(md);
   for (const m of md.matchAll(/\[\[([^\]]+?)\]\]/g)) {
     let inner = m[1];
@@ -117,8 +126,7 @@ export function extractPageLinks(md) {
     if (pipe !== -1) inner = inner.slice(0, pipe);
     const colon = inner.indexOf(":");
     if (colon !== -1) {
-      const cat = inner.slice(0, colon).trim().toLowerCase();
-      if (cat !== "page") continue;
+      if (inner.slice(0, colon).trim().toLowerCase() !== "page") continue;
       inner = inner.slice(colon + 1);
     }
     out.push(inner.trim());
@@ -127,23 +135,12 @@ export function extractPageLinks(md) {
   return out;
 }
 
-// Mirrors src/lib/refs.ts (this file must stay import-free). Keep in sync.
-const REF_RE = /\{\{ref\|([^}]+)\}\}/g;
-const QUOTE_UNSAFE_RE = /[%|{}*_[\]`<>&~\\\r\n]/g;
+/** A ref as stored (`raw`) with its token and quotes (`raw` as stored, `text` decoded). */
+type RawRef = { raw: string; token: string; quotes: { raw: string; text: string }[] };
 
-/** Percent-encodes a quote for `{{ref|…|quote=…}}` exactly as the app's editor does. */
-export function encodeRefQuote(quote) {
-  return quote
-    .replace(/\s*[\r\n]+\s*/g, " ")
-    .replace(QUOTE_UNSAFE_RE, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
-}
-
-/**
- * Every `{{ref|token|quote=…}}` in `md`, in order, as
- * `{ raw, token, quotes: [{ raw, text }] }` (`raw` as stored, `text` decoded).
- */
-export function extractRefs(md) {
-  const out = [];
+/** Every `{{ref|token|quote=…}}` in `md`, in order, keeping the stored encoding of each quote. */
+export function extractRefs(md: string): RawRef[] {
+  const out: RawRef[] = [];
   md = expandTableCells(md);
   for (const m of md.matchAll(REF_RE)) {
     const [token, ...params] = m[1].split("|");
@@ -152,7 +149,7 @@ export function extractRefs(md) {
       .filter((p) => p.startsWith("quote="))
       .map((p) => {
         const raw = p.slice("quote=".length);
-        return { raw, text: raw.replace(/%([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16))).trim() };
+        return { raw, text: decodePct(raw).trim() };
       })
       .filter((q) => q.text);
     out.push({ raw: m[0], token: token.trim(), quotes });
@@ -161,75 +158,32 @@ export function extractRefs(md) {
 }
 
 /** Ref token that cites the target chapter, e.g. `Chapter:1.00` (older context files have no `chapter.refToken`). */
-export function chapterRefToken(context) {
+export function chapterRefToken(context: IngestContext): string {
   return context.chapter.refToken ?? `Chapter:${context.chapter.displayName}`;
 }
 
 /** Text written by the model: `md` with every ref removed (ref quotes are verbatim, so they may contain em dashes). */
-export function proseOnly(md) {
+export function proseOnly(md: string): string {
   return md.replace(REF_RE, "");
 }
 
-/**
- * Word-level diff of `a` → `b` as `[{ t: "=" | "-" | "+", s }]`. Trims the
- * common prefix/suffix first (edits are localized), then runs an LCS on the
- * remaining middle.
- */
-export function wordDiff(a, b) {
-  const A = a.split(/(\s+)/).filter(Boolean);
-  const B = b.split(/(\s+)/).filter(Boolean);
-  let p = 0;
-  while (p < A.length && p < B.length && A[p] === B[p]) p++;
-  let s = 0;
-  while (s < A.length - p && s < B.length - p && A[A.length - 1 - s] === B[B.length - 1 - s]) s++;
-  const a2 = A.slice(p, A.length - s);
-  const b2 = B.slice(p, B.length - s);
-  const ops = [];
-  if (p) ops.push({ t: "=", s: A.slice(0, p).join("") });
-  if (a2.length * b2.length > 4_000_000) {
-    ops.push({ t: "-", s: a2.join("") }, { t: "+", s: b2.join("") });
-  } else {
-    const n = a2.length;
-    const m = b2.length;
-    const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
-    for (let i = n - 1; i >= 0; i--)
-      for (let j = m - 1; j >= 0; j--)
-        dp[i][j] = a2[i] === b2[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    let i = 0;
-    let j = 0;
-    const push = (t, str) => {
-      const last = ops[ops.length - 1];
-      if (last && last.t === t) last.s += str;
-      else ops.push({ t, s: str });
-    };
-    while (i < n && j < m) {
-      if (a2[i] === b2[j]) { push("=", a2[i]); i++; j++; }
-      else if (dp[i + 1][j] >= dp[i][j + 1]) push("-", a2[i++]);
-      else push("+", b2[j++]);
-    }
-    while (i < n) push("-", a2[i++]);
-    while (j < m) push("+", b2[j++]);
-  }
-  if (s) ops.push({ t: "=", s: A.slice(A.length - s).join("") });
-  return ops;
-}
-
-const isStr = (v) => typeof v === "string";
+const isStr = (v: unknown): v is string => typeof v === "string";
 const isArr = Array.isArray;
 
-function checkCitations(cits, where, errors) {
+function checkCitations(cits: unknown, where: string, errors: string[]) {
   if (!isArr(cits) || cits.length === 0) {
     errors.push(`${where}: citations must be a non-empty array`);
     return;
   }
-  cits.forEach((c, i) => {
+  cits.forEach((c: IngestCitation, i) => {
     if (!c || !isStr(c.quote) || !c.quote.trim()) errors.push(`${where}.citations[${i}]: quote must be a non-empty string`);
     if (c && c.note !== undefined && !isStr(c.note)) errors.push(`${where}.citations[${i}]: note must be a string`);
   });
 }
 
 /** Structural check mirroring `.claude/skills/ingest-chapter/proposals.schema.json`. */
-function checkShape(p, errors) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function checkShape(p: any, errors: string[]) {
   if (!p || typeof p !== "object") return errors.push("proposals must be an object");
   if (p.v !== 1) errors.push("v must be 1");
   if (typeof p.chapterId !== "number") errors.push("chapterId must be a number");
@@ -241,7 +195,8 @@ function checkShape(p, errors) {
   }
   if (!isArr(p.newPages)) errors.push("newPages must be an array");
   else
-    p.newPages.forEach((n, i) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    p.newPages.forEach((n: any, i: number) => {
       const w = `newPages[${i}]`;
       if (!isStr(n.tempId) || !n.tempId) errors.push(`${w}.tempId must be a non-empty string`);
       if (!isStr(n.title) || !n.title.trim()) errors.push(`${w}.title must be a non-empty string`);
@@ -255,7 +210,8 @@ function checkShape(p, errors) {
     });
   if (!isArr(p.updates)) errors.push("updates must be an array");
   else
-    p.updates.forEach((u, i) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    p.updates.forEach((u: any, i: number) => {
       const w = `updates[${i}]`;
       if (typeof u.pageId !== "number") errors.push(`${w}.pageId must be a number`);
       if (u.importance !== "major" && u.importance !== "minor") errors.push(`${w}.importance must be "major" or "minor"`);
@@ -263,7 +219,8 @@ function checkShape(p, errors) {
       if (u.edits === undefined && u.infobox === undefined) errors.push(`${w}: needs edits, infobox, or both`);
       if (u.edits !== undefined && (!isArr(u.edits) || u.edits.length === 0)) errors.push(`${w}.edits must be a non-empty array when present`);
       else if (u.edits)
-        u.edits.forEach((e, j) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        u.edits.forEach((e: any, j: number) => {
           const ok =
             (e.op === "append" && isStr(e.text)) ||
             (e.op === "insert_after" && isStr(e.anchor) && isStr(e.text)) ||
@@ -286,11 +243,11 @@ export const CHARACTER_INFOBOX_FIELDS = [
  * (`| **Field** | value |` rows under an empty `| | |` header) and the older
  * `**Field**` line + value form. Values are decoded with `expandTableCells`.
  */
-export function parseInfobox(md) {
+export function parseInfobox(md: string | null | undefined): { field: string; value: string }[] {
   const lines = (md ?? "").split("\n");
   const rows = lines.filter((l) => l.trim().startsWith("|"));
   if (rows.length) {
-    const out = [];
+    const out: { field: string; value: string }[] = [];
     for (const row of rows) {
       // Split on unescaped pipes; drop the empty edge cells.
       const cells = row.trim().replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((c) => c.trim());
@@ -300,8 +257,8 @@ export function parseInfobox(md) {
     }
     return out;
   }
-  const out = [];
-  let cur = null;
+  const out: { field: string; value: string }[] = [];
+  let cur: { field: string; value: string } | null = null;
   for (const line of lines) {
     const m = line.trim().match(/^\*\*([^*]+)\*\*$/);
     if (m) {
@@ -313,28 +270,20 @@ export function parseInfobox(md) {
   return out;
 }
 
-// Mirrors encodeItem in src/lib/cell-lists.ts. Keep in sync.
-const CELL_ITEM_UNSAFE_RE = /[%|;{}*_[\]`<>&~\\:@]/g;
-const encodeCellItem = (item) =>
-  item
-    .replace(/\s*[\r\n]+\s*/g, " ")
-    .trim()
-    .replace(CELL_ITEM_UNSAFE_RE, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`);
-
 /**
  * Format problems in infobox grid markdown: not a grid, a missing empty header,
  * rows without exactly two cells (usually an unescaped `|`), unbolded labels,
  * several links in one cell outside a cell list, and `{{list:…}}` items that are
  * not percent-encoded exactly as the app's editor writes them.
  */
-export function infoboxFormatErrors(md) {
-  const errors = [];
+export function infoboxFormatErrors(md: string | null | undefined): string[] {
+  const errors: string[] = [];
   const rows = (md ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
   if (!rows.every((r) => r.startsWith("|"))) {
     errors.push('not a two-column grid - every line must be a "| **Field** | value |" row, under an empty "| | |" header and a "| --- | --- |" separator');
     return errors;
   }
-  const cellsOf = (row) => row.replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((c) => c.trim());
+  const cellsOf = (row: string) => row.replace(/^\|/, "").replace(/\|$/, "").split(/(?<!\\)\|/).map((c) => c.trim());
   const [head, sep, ...body] = rows;
   if (!head || cellsOf(head).some((c) => c)) errors.push('first row must be an empty header "| | |"');
   if (!sep || !cellsOf(sep).every((c) => /^:?-+:?$/.test(c))) errors.push('second row must be the separator "| --- | --- |"');
@@ -356,7 +305,7 @@ export function infoboxFormatErrors(md) {
       const raws = m[1].split(";");
       if (!raws.some((r) => r.trim())) errors.push(`${label}: empty {{list:}}`);
       for (const raw of raws) {
-        const text = raw.replace(/%([0-9A-Fa-f]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16))).trim();
+        const text = decodePct(raw).trim();
         if (!text) continue;
         if (/\{\{ref\|/i.test(text)) errors.push(`${label}: a ref is inside a list item - put it after the {{list:...}}`);
         else if (raw.trim() !== encodeCellItem(text))
@@ -368,7 +317,7 @@ export function infoboxFormatErrors(md) {
 }
 
 /** Values of `next` whose field is new or whose value changed from `base`. */
-function changedInfoboxValues(base, next) {
+function changedInfoboxValues(base: string, next: string): string[] {
   const prev = new Map(parseInfobox(base).map((f) => [f.field.toLowerCase(), f.value]));
   return parseInfobox(next)
     .filter((f) => prev.get(f.field.toLowerCase()) !== f.value)
@@ -376,38 +325,29 @@ function changedInfoboxValues(base, next) {
 }
 
 /**
- * Slug the app gives a page from its title. Mirrors `titleToSlug` in src/lib/slug.ts (this file
- * must stay import-free). `[Basic Cleaning]` -> `basic-cleaning`, `An Abandoned Inn` -> `an-abandoned-inn`.
+ * Slug the app gives a page from its title (`titleToSlug`).
+ * `[Basic Cleaning]` -> `basic-cleaning`, `An Abandoned Inn` -> `an-abandoned-inn`.
  */
-export function pageSlug(title) {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-/**
- * Slug of an indexed page, as stored. Never derived from the title: the app makes the slug from the
- * page's first name, so a renamed page ("Erin" -> "Erin Solstice") keeps its old slug (`erin`).
- */
-export function indexedSlug(p) {
-  return p.slug;
-}
+export const pageSlug = titleToSlug;
 
 /**
  * Builds the map of linkable slugs. The app resolves `[[page:x]]` by page slug (exact match), so a
  * link is valid only if `x` is the slug of an indexed page, or the slug that a proposed new page
- * will get from its title. Maps slug -> { pageId } | { tempId }. Titles and aliases are not
- * linkable (see `slugHints`).
+ * will get from its title. Titles and aliases are not linkable (see `slugHints`): the app makes the
+ * slug from the page's first name, so a renamed page ("Erin" -> "Erin Solstice") keeps its old slug.
  *
- * `livePages` (optional, `{ id, slug }[]`) are every non-deleted page of the serial, read from the
- * database at review time. They let a link point to a page that exists but is not in the
- * spoiler-filtered index (e.g. introduced in a later chapter). Such targets get `live: true`. The
- * export never includes them, so the agent writing proposals cannot see later-chapter slugs.
+ * `livePages` are every non-deleted page of the serial, read from the database at review time.
+ * They let a link point to a page that exists but is not in the spoiler-filtered index (e.g.
+ * introduced in a later chapter). Such targets get `live: true`. The export never includes them,
+ * so the agent writing proposals cannot see later-chapter slugs.
  */
-export function buildTitleMap(context, proposals, livePages = []) {
-  const map = new Map();
-  for (const p of context.pageIndex) map.set(indexedSlug(p), { pageId: p.id });
+export function buildTitleMap(
+  context: IngestContext,
+  proposals: Pick<Proposals, "newPages"> | null,
+  livePages: LivePage[] = [],
+): Map<string, LinkTarget> {
+  const map = new Map<string, LinkTarget>();
+  for (const p of context.pageIndex) map.set(p.slug, { pageId: p.id });
   for (const p of livePages) if (!map.has(p.slug)) map.set(p.slug, { pageId: p.id, live: true });
   for (const n of proposals?.newPages ?? []) {
     const slug = pageSlug(n.title);
@@ -417,11 +357,11 @@ export function buildTitleMap(context, proposals, livePages = []) {
 }
 
 /** Maps title/alias keys to the slug that should be linked instead, for a helpful error message. */
-function slugHints(context, proposals) {
-  const hints = new Map();
+function slugHints(context: IngestContext, proposals: Proposals): Map<string, string> {
+  const hints = new Map<string, string>();
   for (const p of context.pageIndex)
-    for (const t of [p.title, ...p.aliases]) if (!hints.has(titleKey(t))) hints.set(titleKey(t), indexedSlug(p));
-  for (const n of proposals?.newPages ?? []) if (!hints.has(titleKey(n.title))) hints.set(titleKey(n.title), pageSlug(n.title));
+    for (const t of [p.title, ...p.aliases]) if (!hints.has(titleKey(t))) hints.set(titleKey(t), p.slug);
+  for (const n of proposals.newPages) if (!hints.has(titleKey(n.title))) hints.set(titleKey(n.title), pageSlug(n.title));
   return hints;
 }
 
@@ -429,32 +369,32 @@ function slugHints(context, proposals) {
  * tempIds of the other new pages that new page `n` needs to exist before it
  * can be approved: its parent (if a tempId) and every new page its body links to.
  */
-export function newPageDeps(n, titleMap) {
-  const deps = new Set();
+export function newPageDeps(n: NewPageProposal, titleMap: Map<string, LinkTarget>): string[] {
+  const deps = new Set<string>();
   if (isStr(n.parentPageId)) deps.add(n.parentPageId);
   for (const name of extractPageLinks(n.content ?? "")) {
     const t = titleMap.get(name);
-    if (t?.tempId) deps.add(t.tempId);
+    if (t && "tempId" in t) deps.add(t.tempId);
   }
   deps.delete(n.tempId);
   return [...deps];
 }
 
 /**
- * The review tool approves one proposal at a time and blocks a new page until
+ * The review UI approves one proposal at a time and blocks a new page until
  * every new page it depends on exists. So new-page dependencies must be
  * acyclic, and `newPages` must list each page after its dependencies (the
  * review UI shows them in array order).
  */
-function checkNewPageOrder(newPages, titleMap, errors) {
+function checkNewPageOrder(newPages: NewPageProposal[], titleMap: Map<string, LinkTarget>, errors: string[]) {
   const pos = new Map(newPages.map((n, i) => [n.tempId, i]));
   const depsOf = new Map(newPages.map((n) => [n.tempId, newPageDeps(n, titleMap)]));
 
   // Report each cycle once (DFS with a recursion stack).
-  const state = new Map();
-  const stack = [];
-  const seen = new Set();
-  const visit = (id) => {
+  const state = new Map<string, 1 | 2>();
+  const stack: string[] = [];
+  const seen = new Set<string>();
+  const visit = (id: string) => {
     state.set(id, 1);
     stack.push(id);
     for (const d of depsOf.get(id) ?? []) {
@@ -477,7 +417,7 @@ function checkNewPageOrder(newPages, titleMap, errors) {
   if (seen.size) return;
 
   for (const n of newPages) {
-    const late = depsOf.get(n.tempId).filter((d) => pos.has(d) && pos.get(d) > pos.get(n.tempId));
+    const late = depsOf.get(n.tempId)!.filter((d) => pos.has(d) && pos.get(d)! > pos.get(n.tempId)!);
     if (late.length)
       errors.push(`newPages[${n.tempId}]: depends on ${late.join(", ")}, which come later - list new pages after the pages they link to or use as a parent`);
   }
@@ -486,16 +426,24 @@ function checkNewPageOrder(newPages, titleMap, errors) {
 /**
  * Runs every proposals.json check. `contextRaw` is the exact context.json
  * file content (its sha256 must equal `proposals.contextSha256`).
- * Returns `{ errors, items }` where `items` holds per-proposal results used
- * by the review UI (proposed body, edit errors, unverified quotes, links).
- * `livePages` extends link resolution with pages that exist now (see `buildTitleMap`).
+ * Returns `errors` plus per-proposal `items` used by the review UI (proposed
+ * body, edit errors, unverified quotes, links). `livePages` extends link
+ * resolution with pages that exist now (see `buildTitleMap`).
+ *
+ * @example
+ * const { errors, items } = validateProposals(readFileSync(ctxPath, "utf8"), proposals, livePages);
  */
-export function validateProposals(contextRaw, proposals, livePages = []) {
-  const errors = [];
+export function validateProposals(
+  contextRaw: string,
+  proposals: unknown,
+  livePages: LivePage[] = [],
+): { errors: string[]; items: IngestItem[] } {
+  const errors: string[] = [];
   checkShape(proposals, errors);
   if (errors.length) return { errors, items: [] };
+  const P = proposals as Proposals;
 
-  const context = JSON.parse(contextRaw);
+  const context = JSON.parse(contextRaw) as IngestContext;
   const noSlug = context.pageIndex.filter((p) => !p.slug);
   if (noSlug.length) {
     errors.push(
@@ -503,20 +451,20 @@ export function validateProposals(contextRaw, proposals, livePages = []) {
     );
     return { errors, items: [] };
   }
-  if (proposals.contextSha256 !== sha256(contextRaw))
+  if (P.contextSha256 !== sha256(contextRaw))
     errors.push("contextSha256 does not match context.json (re-export or regenerate proposals)");
-  if (proposals.chapterId !== context.chapter.id)
-    errors.push(`chapterId ${proposals.chapterId} does not match context chapter ${context.chapter.id}`);
+  if (P.chapterId !== context.chapter.id)
+    errors.push(`chapterId ${P.chapterId} does not match context chapter ${context.chapter.id}`);
 
   const chapterNorm = normalizeWs(context.chapterText);
-  const titleMap = buildTitleMap(context, proposals, livePages);
-  const hints = slugHints(context, proposals);
+  const titleMap = buildTitleMap(context, P, livePages);
+  const hints = slugHints(context, P);
   const indexIds = new Set(context.pageIndex.map((p) => p.id));
   const pagesById = new Map(context.pages.map((p) => [p.id, p]));
-  const tempIds = new Set();
-  const items = [];
+  const tempIds = new Set<string>();
+  const items: IngestItem[] = [];
 
-  const verify = (cits, where) =>
+  const verify = (cits: IngestCitation[], where: string): VerifiedCitation[] =>
     cits.map((c) => {
       const ok = chapterNorm.includes(normalizeWs(c.quote));
       if (!ok) errors.push(`${where}: quote not found in chapter text: ${JSON.stringify(c.quote.slice(0, 100))}`);
@@ -524,10 +472,21 @@ export function validateProposals(contextRaw, proposals, livePages = []) {
     });
   const refToken = chapterRefToken(context);
   const chapterType = refToken.slice(0, refToken.indexOf(":")).toLowerCase();
+  const checkNoEmDash = (md: string, where: string) => {
+    if (proseOnly(md).includes("—")) errors.push(`${where}: text has an em dash (—) - rewrite with a comma, colon, parentheses or two sentences`);
+  };
+  const checkQuotes = (r: RawRef, where: string) => {
+    for (const q of r.quotes) {
+      if (!chapterNorm.includes(normalizeWs(q.text)))
+        errors.push(`${where}: ref quote is not verbatim from the chapter: ${JSON.stringify(q.text.slice(0, 100))}`);
+      else if (q.raw !== encodeRefQuote(q.text))
+        errors.push(`${where}: ref quote is not percent-encoded - use quote=${encodeRefQuote(q.text)}`);
+    }
+  };
   // Page text must cite the chapter with refs whose quotes are verbatim and encoded like the editor does.
   // `existing` is the page's current and previous text: a ref copied from it unchanged is kept as is,
   // even when it cites an earlier chapter.
-  const checkPageCitations = (md, where, existing = "") => {
+  const checkPageCitations = (md: string, where: string, existing = "") => {
     const refs = extractRefs(md).filter((r) => !existing.includes(r.raw));
     // A plain `[[Chapter:X]]` link also cites the chapter (used for Class/Skill acquisitions).
     const linksChapter = md.toLowerCase().includes(`[[${refToken.toLowerCase()}`);
@@ -538,34 +497,21 @@ export function validateProposals(contextRaw, proposals, livePages = []) {
       if (cat === chapterType && r.token.toLowerCase() !== refToken.toLowerCase())
         errors.push(`${where}: {{ref|${r.token}}} cites another chapter - cite only ${refToken}`);
       if (cat === chapterType && !r.quotes.length) errors.push(`${where}: {{ref|${r.token}}} has no quote - add |quote=<verbatim text>`);
-      for (const q of r.quotes) {
-        if (!chapterNorm.includes(normalizeWs(q.text)))
-          errors.push(`${where}: ref quote is not verbatim from the chapter: ${JSON.stringify(q.text.slice(0, 100))}`);
-        else if (q.raw !== encodeRefQuote(q.text))
-          errors.push(`${where}: ref quote is not percent-encoded - use quote=${encodeRefQuote(q.text)}`);
-      }
+      checkQuotes(r, where);
     }
     checkNoEmDash(md, where);
   };
-  const checkNoEmDash = (md, where) => {
-    if (proseOnly(md).includes("\u2014")) errors.push(`${where}: text has an em dash (\u2014) - rewrite with a comma, colon, parentheses or two sentences`);
-  };
   // Infobox values are short labels: refs are optional, but any ref must still be verbatim and cite this chapter.
-  const checkInfobox = (md, where) => {
+  const checkInfobox = (md: string, where: string) => {
     for (const e of infoboxFormatErrors(md)) errors.push(`${where}: ${e}`);
     if (!parseInfobox(md).length) errors.push(`${where}: no fields - use a two-column grid of "| **Field** | value |" rows under an empty "| | |" header`);
     for (const r of extractRefs(md)) {
       if (r.token.toLowerCase() !== refToken.toLowerCase()) errors.push(`${where}: {{ref|${r.token}}} - cite only ${refToken}`);
-      for (const q of r.quotes) {
-        if (!chapterNorm.includes(normalizeWs(q.text)))
-          errors.push(`${where}: ref quote is not verbatim from the chapter: ${JSON.stringify(q.text.slice(0, 100))}`);
-        else if (q.raw !== encodeRefQuote(q.text))
-          errors.push(`${where}: ref quote is not percent-encoded - use quote=${encodeRefQuote(q.text)}`);
-      }
+      checkQuotes(r, where);
     }
     checkNoEmDash(md, where);
   };
-  const links = (md, where) =>
+  const links = (md: string, where: string) =>
     extractPageLinks(md).map((name) => {
       const target = titleMap.get(name) ?? null;
       if (!target) {
@@ -579,18 +525,21 @@ export function validateProposals(contextRaw, proposals, livePages = []) {
       return { name, target };
     });
 
-  for (const n of proposals.newPages) {
+  for (const n of P.newPages) {
     const w = `newPages[${n.tempId}]`;
     if (tempIds.has(n.tempId)) errors.push(`${w}: duplicate tempId`);
     tempIds.add(n.tempId);
     const clash = context.pageIndex.find((p) => [p.title, ...p.aliases].some((t) => titleKey(t) === titleKey(n.title)));
     if (clash) errors.push(`${w}: title "${n.title}" already exists as page ${clash.id} - propose an update instead`);
     const slug = pageSlug(n.title);
-    const slugClash = context.pageIndex.find((p) => indexedSlug(p) === slug) ?? livePages.find((p) => p.slug === slug) ?? proposals.newPages.find((o) => o !== n && pageSlug(o.title) === slug);
+    const slugClash =
+      context.pageIndex.find((p) => p.slug === slug) ??
+      livePages.find((p) => p.slug === slug) ??
+      P.newPages.find((o) => o !== n && pageSlug(o.title) === slug);
     if (slugClash && slugClash !== clash) errors.push(`${w}: title "${n.title}" gets slug "${slug}", which another page already uses - the link would not point here; choose a different title`);
   }
-  checkNewPageOrder(proposals.newPages, titleMap, errors);
-  for (const n of proposals.newPages) {
+  checkNewPageOrder(P.newPages, titleMap, errors);
+  for (const n of P.newPages) {
     const w = `newPages[${n.tempId}]`;
     if (typeof n.parentPageId === "number" && !indexIds.has(n.parentPageId)) errors.push(`${w}: parentPageId ${n.parentPageId} not in index`);
     if (isStr(n.parentPageId) && !tempIds.has(n.parentPageId)) errors.push(`${w}: parentPageId "${n.parentPageId}" is not a proposed tempId`);
@@ -611,22 +560,24 @@ export function validateProposals(contextRaw, proposals, livePages = []) {
     });
   }
 
-  if (proposals.synopsis) {
-    checkNoEmDash(proposals.synopsis.content, "synopsis");
+  if (P.synopsis) {
+    checkNoEmDash(P.synopsis.content, "synopsis");
     items.push({
       kind: "synopsis",
       key: "synopsis",
-      proposal: proposals.synopsis,
+      proposal: P.synopsis,
       base: context.existingSynopsis ?? "",
-      body: proposals.synopsis.content,
-      citations: verify(proposals.synopsis.citations, "synopsis"),
-      links: links(proposals.synopsis.content, "synopsis"),
+      body: P.synopsis.content,
+      infobox: null,
+      infoboxBase: null,
+      citations: verify(P.synopsis.citations, "synopsis"),
+      links: links(P.synopsis.content, "synopsis"),
       editErrors: [],
     });
   }
 
-  const seenPages = new Set();
-  for (const u of proposals.updates) {
+  const seenPages = new Set<number>();
+  for (const u of P.updates) {
     const w = `updates[page ${u.pageId}]`;
     if (seenPages.has(u.pageId)) errors.push(`${w}: more than one update for the same page - merge them`);
     seenPages.add(u.pageId);
@@ -638,7 +589,7 @@ export function validateProposals(contextRaw, proposals, livePages = []) {
     const edits = u.edits ?? [];
     const { body, errors: editErrors } = applyEdits(page.content, edits);
     editErrors.forEach((e) => errors.push(`${w}: ${e}`));
-    const added = edits.map((e) => e.text ?? e.with ?? "").join("\n");
+    const added = edits.map((e) => ("text" in e ? e.text : "with" in e ? e.with : "")).join("\n");
     if (edits.length) checkPageCitations(added, w, `${page.content}\n${page.previous?.content ?? ""}`);
     const baseInfobox = page.infobox ?? "";
     const infobox = u.infobox === undefined ? null : u.infobox;

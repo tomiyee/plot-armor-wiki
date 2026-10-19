@@ -11,7 +11,7 @@ import {
   getSerialPages,
 } from "@/data/pages/queries";
 import { fetchChapterSynopsis } from "@/data/chapters/queries";
-import { extractPageLinks } from "./core.mjs";
+import { extractPageLinks } from "@/admin/ingestion/core";
 
 /** Title, slug and other names of a page, as of the export chapter. */
 export type PageNames = { title: string; slug: string; aliases: string[] };

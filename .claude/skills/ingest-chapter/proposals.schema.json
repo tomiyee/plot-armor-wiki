@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "PlotArmor ingest proposals",
-  "description": "Output of /ingest-chapter. Checked by scripts/ingest/validate.mjs (structure mirrored in scripts/ingest/lib/core.mjs).",
+  "description": "Output of /ingest-chapter. Checked by scripts/ingest/validate.ts (structure mirrored in src/admin/ingestion/core.ts).",
   "type": "object",
   "required": ["v", "chapterId", "contextSha256", "promptVersion", "synopsis", "newPages", "updates"],
   "additionalProperties": false,

@@ -6,7 +6,7 @@ description: Read an exported chapter context (.ingest/<chapter>/context.json) a
 # /ingest-chapter
 
 Input: the path to a `context.json` made by `scripts/ingest/export-context.ts`.
-Output: `proposals.json` in the same directory. Nothing is written to the database. The admin reviews every proposal in `scripts/ingest/review.ts`.
+Output: `proposals.json` in the same directory. Nothing is written to the database. The admin reviews every proposal at `/admin/ingestion` in the app.
 
 Do all work in this session. Do not use subagents.
 
@@ -129,6 +129,6 @@ Do all work in this session. Do not use subagents.
    - `contextSha256`: run `sha256sum <context.json>` and use the hex value.
    - `promptVersion`: run `git log -1 --format=%h -- .claude/skills/ingest-chapter`.
 4. **Write** `proposals.json` next to `context.json`. The format is in `proposals.schema.json` in this skill directory.
-5. **Validate.** Run `node scripts/ingest/validate.mjs <context.json> <proposals.json>`. Fix every `FAIL` line and run it again until it prints `OK`. Then run it with `--links` and check that each link goes to the page you mean (a link that resolves to the wrong page still passes).
+5. **Validate.** Run `npx tsx scripts/ingest/validate.ts <context.json> <proposals.json>`. Fix every `FAIL` line and run it again until it prints `OK`. Then run it with `--links` and check that each link goes to the page you mean (a link that resolves to the wrong page still passes).
 6. Tell the admin the counts and the next step:
-   `npx tsx scripts/ingest/review.ts <chapter dir>`
+   run `npm run dev:dev` (or `dev:prod`, matching the database the context came from) and open `/admin/ingestion/<chapter dir name>`.

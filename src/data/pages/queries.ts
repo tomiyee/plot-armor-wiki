@@ -1,4 +1,5 @@
 import { db } from "@/db/index";
+import type { Db } from "@/db/index";
 import {
   chapters,
   pages,
@@ -412,10 +413,11 @@ export async function fetchDeletedPages(
 export async function fetchPageContentAtIdx(
   pageId: number,
   cutoffIdx: number,
+  executor: Db = db,
 ): Promise<PageContentAtIdx> {
   const maxIdxSq = pageContentMaxIdxSq(pageId, cutoffIdx);
 
-  const [row] = await db
+  const [row] = await executor
     .select({ content: pageContentRevisions.content, chapterIdx: chapters.idx })
     .from(pageContentRevisions)
     .innerJoin(chapters, eq(pageContentRevisions.chapterId, chapters.id))
@@ -439,10 +441,11 @@ export async function fetchPageContentAtIdx(
 export async function fetchPageInfoboxAtIdx(
   pageId: number,
   cutoffIdx: number,
+  executor: Db = db,
 ): Promise<PageInfoboxAtIdx> {
   const maxIdxSq = pageInfoboxMaxIdxSq(pageId, cutoffIdx);
 
-  const [row] = await db
+  const [row] = await executor
     .select({
       content: pageInfoboxContentRevisions.content,
       imageUrl: pageInfoboxContentRevisions.imageUrl,
@@ -703,8 +706,9 @@ export async function fetchAllSerialPageStubs(
  */
 export async function getSerialPages(
   serialId: number,
+  executor: Db = db,
 ): Promise<SerialPageStub[]> {
-  return db
+  return executor
     .select({
       id: pages.id,
       name: pages.name,

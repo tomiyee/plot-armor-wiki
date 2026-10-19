@@ -16,7 +16,8 @@ export const CELL_LIST_RE = /\{\{list:([^}]*)\}\}/g;
 // `|` must be encoded too: inside a table row it would end the cell.
 const ITEM_UNSAFE_RE = /[%|;{}*_[\]`<>&~\\:@]/g;
 
-function encodeItem(item: string): string {
+/** Percent-encodes one list item exactly as `formatCellList` stores it. */
+export function encodeCellItem(item: string): string {
   return item
     .replace(/\s*[\r\n]+\s*/g, " ")
     .trim()
@@ -52,7 +53,7 @@ export function parseCellListBody(body: string): string[] {
  * formatCellList(["[[page:luffy]]", "Zoro"]) // → "{{list:%5B%5Bpage%3Aluffy%5D%5D;Zoro}}"
  */
 export function formatCellList(items: string[]): string {
-  const encoded = items.map(encodeItem).filter(Boolean);
+  const encoded = items.map(encodeCellItem).filter(Boolean);
   return `{{list:${encoded.join(";")}}}`;
 }
 

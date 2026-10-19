@@ -13,7 +13,7 @@
 import "./lib/env";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { sha256 } from "./lib/core.mjs";
+import { sha256 } from "@/admin/ingestion/core";
 import { buildContextPages, loadPageNames, withParents } from "./lib/contextPages";
 
 type IndexEntry = { id: number; introducedAtChapter: boolean; includedByAdmin?: boolean };

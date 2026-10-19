@@ -45,6 +45,7 @@ PlotArmor is a spoiler-safe wiki platform. Users set a **chapter cutoff** per se
 /help                # static help & documentation page
 /admin               # site-admin tools (gated: ADMIN_TOOLS_ENABLED + SITE_ADMIN_EMAILS)
 /admin/text-migrations  # preview/apply stored-markdown rewrites
+/admin/ingestion      # review/apply /ingest-chapter proposals from .ingest/<chapter>/
 /{serial}            # serial home (metadata + home wiki page)
 /{serial}/new        # new wiki page form
 /{serial}/{slug}     # wiki page
@@ -121,6 +122,7 @@ Write mutations (inserts/updates/deletes) directly in the Server Action that own
 | `src/app/[serial]/chapter/[chapterIdx]/synopsisSuggestionActions.ts` | Synopsis suggestion workflow; approve writes to `chapterSynopses`. |
 | `src/lib/auth-guard.ts` | `isSiteAdmin`/`requireSiteAdmin` gate `/admin` (env flag + email allowlist). `isSerialAdmin`/`isAuthenticated` for Server Components; `requireSerialAdmin`/`requireAuthenticated` (throw on failure) for Server Actions. |
 | `src/admin/text-migrations/` | Text migration types + registry (one file per migration). Applied in place, with backups in `text_migration_backups`. |
+| `src/admin/ingestion/` | Ingest proposal validation (`core.ts`, shared by `scripts/ingest/validate.ts` and `/admin/ingestion`), `.ingest/` file access, and DB writes for approvals. Writes take an explicit `Db` so the admin DB toggle applies. |
 | `src/components/ChapterSelector.tsx` | Reads/writes progress via `usePersistedStore` + mirrors to cookie for SSR. On first visit shows a spoiler callout `<Popover>`. |
 | `src/components/WikiLinkMDEditor.tsx` | MDXEditor WYSIWYG + `[[page:Name]]`/`[[chapter:Name]]` autocomplete. Custom Lexical node handles wiki-link syntax end-to-end. |
 | `src/components/SerialEditor.tsx` | Volume/chapter edit UI with drag-and-drop reorder (`@dnd-kit`). Uses the serial's type names (e.g. "Episode"/"Season"). |
