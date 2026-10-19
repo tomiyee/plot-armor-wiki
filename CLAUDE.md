@@ -3,7 +3,8 @@
 ## Commands
 
 ```bash
-npm run dev                          # start Next.js dev server
+npm run dev                          # start Next.js dev server (DB from DB_ENV)
+npm run dev:dev / dev:prod           # force DEV_DATABASE_URL / DATABASE_URL
 rtk npm run build                    # production build
 rtk npm run lint                     # run ESLint
 rtk npx drizzle-kit generate         # generate migration after schema changes
@@ -27,7 +28,9 @@ rtk read <file>       # instead of: cat <file>
 
 Whenever `src/db/schema.ts` changes: generate migration → apply → commit schema + migration + `drizzle/meta/` together.
 
-Local dev: set `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, and `AUTH_URL` in `.env.local`, then `.\scripts\start-db.ps1` to create/start the Postgres container.
+Database selection: `DB_ENV=prod|dev` (unset = prod) picks `DATABASE_URL` (prod; the only var deployments need) or `DEV_DATABASE_URL`, via `resolveDatabaseUrl()` in `src/db/url.ts`. Never read `process.env.DATABASE_URL` directly.
+
+Local dev: set `DB_ENV`, `DATABASE_URL`, `DEV_DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, and `AUTH_URL` in `.env.local`. For `/admin` tooling also set `ADMIN_TOOLS_ENABLED=true` (local only, never on Vercel) and `SITE_ADMIN_EMAILS` (comma-separated), then `.\scripts\start-db.ps1` to create/start the Postgres container.
 
 No test runner configured.
 
@@ -40,6 +43,8 @@ PlotArmor is a spoiler-safe wiki platform. Users set a **chapter cutoff** per se
 ```
 /                    # home
 /help                # static help & documentation page
+/admin               # site-admin tools (gated: ADMIN_TOOLS_ENABLED + SITE_ADMIN_EMAILS)
+/admin/text-migrations  # preview/apply stored-markdown rewrites
 /{serial}            # serial home (metadata + home wiki page)
 /{serial}/new        # new wiki page form
 /{serial}/{slug}     # wiki page
@@ -114,7 +119,8 @@ Write mutations (inserts/updates/deletes) directly in the Server Action that own
 | `src/app/[serial]/[page]/actions.ts` | `savePageContent` (upserts at target chapter) + `getPageContentAtChapter` (pre-fills edit drafts). |
 | `src/app/[serial]/[page]/suggestionActions.ts` | Page suggestion workflow (submit/approve/reject/query). Also contains `getSectionsAtChapter` which pre-fills the suggestion form when the target chapter changes. |
 | `src/app/[serial]/chapter/[chapterIdx]/synopsisSuggestionActions.ts` | Synopsis suggestion workflow; approve writes to `chapterSynopses`. |
-| `src/lib/auth-guard.ts` | `isSerialAdmin`/`isAuthenticated` for Server Components; `requireSerialAdmin`/`requireAuthenticated` (throw on failure) for Server Actions. |
+| `src/lib/auth-guard.ts` | `isSiteAdmin`/`requireSiteAdmin` gate `/admin` (env flag + email allowlist). `isSerialAdmin`/`isAuthenticated` for Server Components; `requireSerialAdmin`/`requireAuthenticated` (throw on failure) for Server Actions. |
+| `src/admin/text-migrations/` | Text migration types + registry (one file per migration). Applied in place, with backups in `text_migration_backups`. |
 | `src/components/ChapterSelector.tsx` | Reads/writes progress via `usePersistedStore` + mirrors to cookie for SSR. On first visit shows a spoiler callout `<Popover>`. |
 | `src/components/WikiLinkMDEditor.tsx` | MDXEditor WYSIWYG + `[[page:Name]]`/`[[chapter:Name]]` autocomplete. Custom Lexical node handles wiki-link syntax end-to-end. |
 | `src/components/SerialEditor.tsx` | Volume/chapter edit UI with drag-and-drop reorder (`@dnd-kit`). Uses the serial's type names (e.g. "Episode"/"Season"). |

@@ -29,7 +29,9 @@ export function RefList(props: RefListProps) {
   const { ordinalMap, quotesMap, ...markdownProps } = props;
   if (ordinalMap.size === 0) return null;
   return (
-    <div className="mt-6 border-t pt-4">
+    // flow-root narrows the box beside a floated infobox so the divider
+    // doesn't run underneath it (a plain block only wraps its text).
+    <div className="mt-6 flow-root border-t pt-4">
       <Text variant="h3" className="mb-2 text-sm">
         References
       </Text>

@@ -4,6 +4,9 @@ import { PreviewCard as PreviewCardPrimitive } from "@base-ui/react/preview-card
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
+/** Matches `--navbar-height` in globals.css. */
+const NAVBAR_HEIGHT_PX = 54;
+
 interface HoverCardProps {
   /** The trigger element (must be a single anchor or focusable element). */
   trigger: ReactNode;
@@ -45,10 +48,14 @@ export function HoverCard(props: HoverCardProps) {
           side={side}
           sideOffset={8}
           align="start"
+          // Keep tall cards clear of the sticky navbar instead of sliding under it.
+          collisionPadding={{ top: NAVBAR_HEIGHT_PX + 8, right: 8, bottom: 8, left: 8 }}
+          // z-index must live on the positioned element; on the popup it has no effect.
+          className="z-50"
         >
           <PreviewCardPrimitive.Popup
             className={cn(
-              "z-50 w-72 rounded-lg border border-border bg-popover text-popover-foreground p-4 shadow-lg",
+              "w-72 max-h-[calc(var(--scroll-area-h)-1rem)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground p-4 shadow-lg",
               "data-starting-style:opacity-0 data-ending-style:opacity-0",
               "transition-opacity duration-150",
               className,
