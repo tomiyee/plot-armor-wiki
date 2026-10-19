@@ -6,7 +6,7 @@ description: Read an exported chapter context (.ingest/<chapter>/context.json) a
 # /ingest-chapter
 
 Input: the path to a `context.json` made by `scripts/ingest/export-context.ts`.
-Output: `proposals.json` in the same directory. Nothing is written to the database. The admin reviews every proposal at `/admin/ingestion` in the app.
+Output: `proposals.json` in the same directory. This skill writes nothing to the database. The admin reviews each proposal at `/admin/ingestion` in the app.
 
 Do all work in this session. Do not use subagents.
 
@@ -131,4 +131,4 @@ Do all work in this session. Do not use subagents.
 4. **Write** `proposals.json` next to `context.json`. The format is in `proposals.schema.json` in this skill directory.
 5. **Validate.** Run `npx tsx scripts/ingest/validate.ts <context.json> <proposals.json>`. Fix every `FAIL` line and run it again until it prints `OK`. Then run it with `--links` and check that each link goes to the page you mean (a link that resolves to the wrong page still passes).
 6. Tell the admin the counts and the next step:
-   run `npm run dev:dev` (or `dev:prod`, matching the database the context came from) and open `/admin/ingestion/<chapter dir name>`.
+   start the app on the database that the context came from (`npm run dev:dev` or `npm run dev:prod`). Then open `/admin/ingestion/<chapter dir name>`.
