@@ -67,6 +67,7 @@
           "aliases": { "type": "array", "items": { "type": "string" } },
           "parentPageId": { "type": ["integer", "string"], "description": "Indexed page id, or another new page's tempId. Omit to use the serial home page." },
           "content": { "type": "string" },
+          "infobox": { "type": "string", "description": "Optional infobox markdown: a two-column grid with an empty '| | |' header row, then one '| **Field** | value |' row per field; multi-value fields use '{{list:a;b}}' cell lists. Omit when the page needs no infobox." },
           "citations": { "$ref": "#/$defs/citations" },
           "changeSummary": { "type": "string" }
         }
@@ -77,11 +78,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["pageId", "importance", "edits", "citations", "changeSummary"],
+        "required": ["pageId", "importance", "citations", "changeSummary"],
+        "anyOf": [{ "required": ["edits"] }, { "required": ["infobox"] }],
         "properties": {
           "pageId": { "type": "integer" },
           "importance": { "enum": ["major", "minor"] },
           "edits": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/editOp" } },
+          "infobox": { "type": "string", "description": "Optional full replacement of the page's infobox markdown (keep every unchanged field as it is)." },
           "citations": { "$ref": "#/$defs/citations" },
           "changeSummary": { "type": "string" }
         }

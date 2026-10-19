@@ -2,6 +2,7 @@
  * Exports a spoiler-safe context.json for the /ingest-chapter Claude Code skill.
  *
  *   npx tsx scripts/ingest/export-context.ts --serial wandering-inn <capture.json | --clipboard> [--chapter "9.12 E"]
+ *     [--include cave-dragon,an-abandoned-inn]
  *
  * 1. Reads the bookmarklet capture (file or clipboard).
  * 2. Detects the matching chapter (title, then URL slug) and ALWAYS asks for
@@ -9,6 +10,10 @@
  * 3. Reads the wiki at chapter idx N through the DAL (the same filters readers
  *    use, so nothing from later chapters leaks) and writes
  *    `.ingest/<chapter>/capture.json` + `context.json`.
+ *
+ * `--include <slug,...>` (repeatable) adds pages the automatic mention match
+ * missed. A page not yet introduced at chapter N is still read at idx N, so
+ * only its title and any revisions at or before N are exported.
  */
 import "./lib/env";
 import { execSync } from "node:child_process";
@@ -20,15 +25,8 @@ import {
   fetchChapterSynopsis,
   getSerialVolumesAndChapters,
 } from "@/data/chapters/queries";
-import {
-  countPageContentRevisionsAtChapter,
-  fetchActiveParentPagesAtIdx,
-  fetchPageContentAtIdx,
-  fetchPageInfoboxAtIdx,
-  fetchSerialHomePage,
-  fetchSerialPageTitlesAtIdx,
-  fetchSerialPagesAtIdx,
-} from "@/data/pages/queries";
+import { countPageContentRevisionsAtChapter, fetchSerialHomePage } from "@/data/pages/queries";
+import { buildContextPages, findRelatedPages, loadPageNames, mentions, withParents } from "./lib/contextPages";
 import { sha256 } from "./lib/core.mjs";
 import { chapterDirName, rankChapters } from "./lib/chapterMatch";
 
@@ -43,14 +41,16 @@ type Capture = {
 };
 
 function parseArgs(argv: string[]) {
-  const args: { serial?: string; chapter?: string; clipboard: boolean; file?: string } = {
+  const args: { serial?: string; chapter?: string; clipboard: boolean; file?: string; include: string[] } = {
     clipboard: false,
+    include: [],
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--serial") args.serial = argv[++i];
     else if (a === "--chapter") args.chapter = argv[++i];
     else if (a === "--clipboard") args.clipboard = true;
+    else if (a === "--include") args.include.push(...argv[++i].split(",").map((x) => x.trim()).filter(Boolean));
     else args.file = a;
   }
   return args;
@@ -84,28 +84,31 @@ function readClipboard(): string {
   );
 }
 
-function escapeRegex(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Case-insensitive, word-boundary (Unicode-aware) mention test. */
-function mentions(textLower: string, term: string) {
-  const t = term.trim().toLowerCase();
-  if (t.length < 2) return false;
-  if (!textLower.includes(t)) return false; // cheap pre-filter
-  return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegex(t)}(?![\\p{L}\\p{N}])`, "u").test(textLower);
-}
-
-function firstLine(md: string) {
-  const line = md.split("\n").map((l) => l.trim()).find((l) => l && !l.startsWith("#")) ?? "";
-  return line.length > 200 ? `${line.slice(0, 200)}…` : line;
+/** Best-effort clipboard write; returns false when no clipboard tool works. */
+function writeClipboard(text: string): boolean {
+  const cmds = [
+    "clip.exe",
+    "/mnt/c/Windows/System32/clip.exe",
+    "pbcopy",
+    "wl-copy",
+    "xclip -selection clipboard",
+  ];
+  for (const cmd of cmds) {
+    try {
+      execSync(cmd, { input: text, stdio: ["pipe", "ignore", "ignore"], timeout: 5000 });
+      return true;
+    } catch {
+      // try the next tool
+    }
+  }
+  return false;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.serial || (!args.file && !args.clipboard)) {
     console.error(
-      'usage: npx tsx scripts/ingest/export-context.ts --serial <slug> <capture.json | --clipboard> [--chapter "<display name>"]',
+      'usage: npx tsx scripts/ingest/export-context.ts --serial <slug> <capture.json | --clipboard> [--chapter "<display name>"] [--include <slug,...>]',
     );
     process.exit(2);
   }
@@ -168,69 +171,38 @@ async function main() {
   rl.close();
 
   // --- Page index (spoiler-safe at idx N) -----------------------------------
-  const [visible, titleRows, home] = await Promise.all([
-    fetchSerialPagesAtIdx(serial.id, N),
-    fetchSerialPageTitlesAtIdx(serial.id, N),
+  const [{ visible, names, include }, home] = await Promise.all([
+    loadPageNames(serial.id, N),
     fetchSerialHomePage(serial.id),
   ]);
-  const titlesByPage = new Map<number, string[]>();
-  for (const r of titleRows) {
-    const list = titlesByPage.get(r.pageId) ?? [];
-    list.push(r.title);
-    titlesByPage.set(r.pageId, list);
-  }
   const textLower = capture.text.toLowerCase();
-  const allNames = new Map<number, { title: string; aliases: string[] }>();
-  for (const p of visible) {
-    const history = titlesByPage.get(p.id) ?? [];
-    const title = history.at(-1) ?? p.name;
-    const aliases = [...new Set([p.name, ...history].filter((t) => t !== title))];
-    allNames.set(p.id, { title, aliases });
-  }
 
   // Pages introduced at this chapter are always indexed, even when the text
   // never names them verbatim: an admin may have created them already, and
   // the skill must update them instead of proposing duplicates.
   const introducedHere = new Set(visible.filter((p) => p.introChapterId === chapter.id).map((p) => p.id));
   const matched = new Set<number>();
-  for (const [id, n] of allNames) {
+  for (const [id, n] of names) {
     if (id === home?.id) continue;
     if (introducedHere.has(id) || [n.title, ...n.aliases].some((t) => mentions(textLower, t))) matched.add(id);
   }
-  const parentOf = new Map<number, number | null>();
-  const queue = [...matched];
-  const included = new Set(matched);
-  while (queue.length) {
-    const id = queue.pop()!;
-    const parents = await fetchActiveParentPagesAtIdx(id, N);
-    parentOf.set(id, parents[0]?.id ?? null);
-    for (const par of parents) {
-      if (!included.has(par.id) && allNames.has(par.id)) {
-        included.add(par.id);
-        queue.push(par.id);
-      }
-    }
-  }
+  // Admin-requested pages the mention match missed.
+  const forced = await include(args.include);
+  for (const id of forced) matched.add(id);
 
-  const ids = [...included].sort((a, b) => a - b);
-  const bodies = await Promise.all(
-    ids.map(async (id) => {
-      const [content, infobox] = await Promise.all([
-        fetchPageContentAtIdx(id, N),
-        fetchPageInfoboxAtIdx(id, N),
-      ]);
-      return { id, content: content.content, infobox: infobox.content };
-    }),
-  );
-  const pagesOut = bodies.map((b) => ({ id: b.id, title: allNames.get(b.id)!.title, content: b.content, infobox: b.infobox }));
-  const pageIndex = bodies.map((b) => ({
-    id: b.id,
-    title: allNames.get(b.id)!.title,
-    aliases: allNames.get(b.id)!.aliases,
-    parentId: parentOf.get(b.id) ?? null,
-    introducedAtChapter: introducedHere.has(b.id),
-    firstLine: firstLine(b.content),
-  }));
+  // Pages named differently in the text ("the Dragon" for Cave Dragon).
+  const related = await findRelatedPages({
+    names,
+    matched,
+    homeId: home?.id ?? null,
+    textLower,
+    N,
+    previousChapters: chapterList.filter((c) => c.idx < N).sort((a, b) => a.idx - b.idx),
+  });
+  for (const id of related.include) matched.add(id);
+
+  const parentOf = await withParents(matched, names, N);
+  const { pageIndex, pages: pagesOut } = await buildContextPages(parentOf, names, N, { introducedHere, forced, related: related.reasons });
 
   const context = {
     v: 1,
@@ -239,14 +211,16 @@ async function main() {
       id: chapter.id,
       idx: N,
       displayName: chapter.displayName,
-      // Wiki link that cites this chapter in page bodies; the category must be the serial's chapter type.
-      link: `[[${serial.chapterType}:${chapter.displayName}]]`,
+      // `{{ref|…}}` token that cites this chapter; the category must be the serial's chapter type.
+      refToken: `${serial.chapterType}:${chapter.displayName}`,
     },
     homePageId: home?.id ?? null,
     source: { url: capture.url, title: capture.title, textSha256: sha256(capture.text) },
     chapterText: capture.text,
     pageIndex,
     pages: pagesOut,
+    // Related pages not exported in full; add one with add-context.ts.
+    candidates: related.candidates,
     existingSynopsis: existingSynopsis?.trim() ? existingSynopsis : null,
     exportedAt: new Date().toISOString(),
   };
@@ -258,9 +232,11 @@ async function main() {
   writeFileSync(path.join(dir, "context.json"), contextRaw);
 
   console.log(
-    `\nWrote ${dir}/context.json - ${pageIndex.length} indexed pages (${matched.size} mentioned or introduced here + parents; ${introducedHere.size} introduced here), ~${Math.round(contextRaw.length / 4 / 1000)}k tokens.`,
+    `\nWrote ${dir}/context.json - ${pageIndex.length} indexed pages (${matched.size} mentioned, related, introduced here or --include'd + parents; ${introducedHere.size} introduced here; ${related.include.size} related), ${related.candidates.length} candidates, ~${Math.round(contextRaw.length / 4 / 1000)}k tokens.`,
   );
-  console.log(`Next, in a fresh Claude Code session: /ingest-chapter ${dir}/context.json`);
+  const command = `/ingest-chapter ${dir}/context.json`;
+  const copied = writeClipboard(command);
+  console.log(`Next, in a fresh Claude Code session: ${command}${copied ? " (copied to clipboard)" : ""}`);
 }
 
 main()

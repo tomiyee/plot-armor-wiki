@@ -6,9 +6,10 @@
  */
 import { db } from "@/db/index";
 import { chapterSynopses } from "@/db/schema";
-import { fetchPageContentAtIdx } from "@/data/pages/queries";
-import { applyPageContentRevision } from "@/app/[serial]/[page]/revisionHelpers";
+import { fetchPageContentAtIdx, fetchPageInfoboxAtIdx } from "@/data/pages/queries";
+import { applyPageContentRevision, applyPageInfoboxRevision } from "@/app/[serial]/[page]/revisionHelpers";
 import { createPageRecord } from "@/lib/createPageRecord";
+import { titleToSlug } from "@/lib/slug";
 
 /** Target chapter for all writes. */
 export type ApplyTarget = { serialId: number; chapterId: number; chapterIdx: number; dryRun: boolean };
@@ -34,43 +35,66 @@ export async function applySynopsis(t: ApplyTarget, content: string): Promise<vo
  */
 export async function applyNewPage(
   t: ApplyTarget,
-  page: { title: string; parentPageId: number; content: string },
+  page: { title: string; parentPageId: number; content: string; infobox?: string | null },
 ): Promise<number> {
   if (t.dryRun) {
     console.log(
-      `[dry-run] create page "${page.title}" intro=${t.chapterId} parent=${page.parentPageId} (${page.content.length} chars)`,
+      `[dry-run] create page "${page.title}" intro=${t.chapterId} parent=${page.parentPageId} (${page.content.length} chars${page.infobox ? `, infobox ${page.infobox.length} chars` : ""})`,
     );
     return -1;
   }
   return db.transaction(async (tx) => {
-    const { id } = await createPageRecord(
-      { serialId: t.serialId, name: page.title.trim(), introChapterId: t.chapterId, parentPageId: page.parentPageId },
+    const name = page.title.trim();
+    const { id, slug } = await createPageRecord(
+      { serialId: t.serialId, name, introChapterId: t.chapterId, parentPageId: page.parentPageId },
       tx,
     );
+    // Proposals link to a new page by the slug its title produces. A clash with a page the context
+    // could not see (introduced later) gets a `-2` suffix and breaks those links, so roll back.
+    if (slug !== titleToSlug(name))
+      throw new Error(`slug for "${name}" would be "${slug}", not "${titleToSlug(name)}" - a hidden page already uses it; rename the proposed page`);
     await applyPageContentRevision(tx, id, t.chapterId, t.chapterIdx, page.content);
+    if (page.infobox?.trim())
+      await applyPageInfoboxRevision(tx, id, t.chapterId, t.chapterIdx, page.infobox, null, true);
     return id;
   });
 }
 
 /**
- * Writes `content` as the page body at chapter N after a stale check: the
- * page's live content at N must still equal `baseContent` from context.json.
+ * Writes an approved page update at chapter N: the body (when `content` is
+ * set) and/or the infobox (when `infobox` is set). Stale check first: the
+ * live body and infobox at N must still equal the bases from context.json.
+ * The infobox image is kept as it is.
  */
 export async function applyPageUpdate(
   t: ApplyTarget,
   pageId: number,
-  baseContent: string,
-  content: string,
+  base: { content: string; infobox: string },
+  next: { content: string | null; infobox: string | null },
 ): Promise<void> {
-  const live = await fetchPageContentAtIdx(pageId, t.chapterIdx);
-  if (live.content !== baseContent) {
+  const [live, liveInfobox] = await Promise.all([
+    fetchPageContentAtIdx(pageId, t.chapterIdx),
+    fetchPageInfoboxAtIdx(pageId, t.chapterIdx),
+  ]);
+  if (
+    (next.content !== null && live.content !== base.content) ||
+    (next.infobox !== null && liveInfobox.content !== base.infobox)
+  ) {
     throw new StaleError(
       `Page ${pageId} changed since export - re-run export-context.ts and regenerate proposals.`,
     );
   }
   if (t.dryRun) {
-    console.log(`[dry-run] page ${pageId} content revision at chapter ${t.chapterId} (${content.length} chars)`);
+    console.log(
+      `[dry-run] page ${pageId} revision at chapter ${t.chapterId}:` +
+        (next.content !== null ? ` body ${next.content.length} chars` : "") +
+        (next.infobox !== null ? ` infobox ${next.infobox.length} chars` : ""),
+    );
     return;
   }
-  await db.transaction((tx) => applyPageContentRevision(tx, pageId, t.chapterId, t.chapterIdx, content));
+  await db.transaction(async (tx) => {
+    if (next.content !== null) await applyPageContentRevision(tx, pageId, t.chapterId, t.chapterIdx, next.content);
+    if (next.infobox !== null)
+      await applyPageInfoboxRevision(tx, pageId, t.chapterId, t.chapterIdx, next.infobox, liveInfobox.imageUrl, true);
+  });
 }
