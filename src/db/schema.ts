@@ -8,6 +8,7 @@ import {
   timestamp,
   primaryKey,
   uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const chapterTypeEnum = pgEnum("chapter_type", [
@@ -357,3 +358,27 @@ export const chapterSynopsisSuggestions = pgTable(
     reviewNote: text("review_note"),
   },
 );
+
+/**
+ * Ledger of text migrations (see `src/admin/text-migrations/`) that have been
+ * applied to this database. Presence of a row blocks re-application.
+ */
+export const textMigrationsApplied = pgTable("text_migrations_applied", {
+  id: text("id").primaryKey(),
+  appliedAt: timestamp("applied_at").notNull().defaultNow(),
+  rowsChanged: integer("rows_changed").notNull(),
+});
+
+/**
+ * Pre-migration copy of every value a text migration rewrote, for undo.
+ * `row_pk` holds the target table's primary-key columns as JSON.
+ */
+export const textMigrationBackups = pgTable("text_migration_backups", {
+  id: serial("id").primaryKey(),
+  migrationId: text("migration_id")
+    .notNull()
+    .references(() => textMigrationsApplied.id),
+  tableName: text("table_name").notNull(),
+  rowPk: jsonb("row_pk").notNull(),
+  before: text("before"),
+});

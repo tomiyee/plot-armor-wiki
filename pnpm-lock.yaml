@@ -44,6 +44,9 @@ dependencies:
   cmdk:
     specifier: ^1.1.1
     version: 1.1.1(@types/react-dom@19.2.3)(@types/react@19.2.14)(react-dom@19.2.4)(react@19.2.4)
+  diff:
+    specifier: 8.0.2
+    version: 8.0.2
   drizzle-orm:
     specifier: ^0.45.2
     version: 0.45.2(postgres@3.4.9)
@@ -4660,8 +4663,8 @@ packages:
     engines: {node: '>=0.3.1'}
     dev: false
 
-  /diff@8.0.4:
-    resolution: {integrity: sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==}
+  /diff@8.0.2:
+    resolution: {integrity: sha512-sSuxWU5j5SR9QQji/o2qMvqRNYRDOcBTgsJ/DeCf4iSN4gW+gNMXM7wFIP+fdXZxoNiAnHUTGjCr+TSWXdRDKg==}
     engines: {node: '>=0.3.1'}
     dev: false
 
@@ -8351,7 +8354,7 @@ packages:
       cosmiconfig: 9.0.1(typescript@5.9.3)
       dedent: 1.7.2
       deepmerge: 4.3.1
-      diff: 8.0.4
+      diff: 8.0.2
       execa: 9.6.1
       fast-glob: 3.3.3
       fs-extra: 11.3.4

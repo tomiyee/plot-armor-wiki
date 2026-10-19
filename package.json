@@ -26,6 +26,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "diff": "8.0.2",
     "drizzle-orm": "^0.45.2",
     "lexical": "^0.35.0",
     "lucide-react": "^1.11.0",
