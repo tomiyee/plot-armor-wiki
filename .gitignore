@@ -50,3 +50,6 @@ yarn.lock
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local LLM ingest working files (chapter text, context, proposals)
+/.ingest/

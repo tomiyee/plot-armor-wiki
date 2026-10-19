@@ -9,6 +9,12 @@ const TOOLS = [
     description:
       "Preview and apply rewrites of stored markdown syntax across the database.",
   },
+  {
+    href: "/admin/ingestion",
+    title: "Chapter ingestion",
+    description:
+      "Review, edit, and apply the wiki proposals that /ingest-chapter wrote to .ingest/.",
+  },
 ];
 
 /** Index of site-level admin tools. */

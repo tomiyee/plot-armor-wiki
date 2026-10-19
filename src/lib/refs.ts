@@ -24,9 +24,12 @@ export type RefCitation = {
   quotes: string[];
 };
 
-// Percent-encodes characters that would break the ref syntax or be parsed as
-// markdown. Newlines collapse to spaces.
-function encodeRefQuote(quote: string): string {
+/**
+ * Percent-encodes characters that would break the ref syntax or be parsed as
+ * markdown. Newlines collapse to spaces. The ingest validator uses it to check
+ * that model-written quotes are stored exactly as the editor would write them.
+ */
+export function encodeRefQuote(quote: string): string {
   return quote
     .replace(/\s*[\r\n]+\s*/g, " ")
     .replace(

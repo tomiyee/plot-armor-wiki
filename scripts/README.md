@@ -76,3 +76,17 @@ This script installs `pre-commit.sh` as the repo's `pre-commit` git hook. It fin
 ### `pre-commit.sh`
 
 This is the hook itself. `install-hooks.sh` copies it into place. It runs `rtk npm run build` before it allows a commit.
+
+## LLM-assisted chapter ingest (`ingest/`)
+
+These local tools add wiki content from the text of a chapter. The `/ingest-chapter` Claude Code skill writes the proposals. You review them at `/admin/ingestion`. Working files go in `.ingest/<chapter>/`. Git ignores this directory. For the full procedure, see `docs/ingest-workflow.md`.
+
+1. **Setup:** the scripts read `.env.local` and use `DB_ENV`, as `npm run dev` does. Add `--db=dev` or `--db=prod` to override it for one run. The review page also needs `ADMIN_TOOLS_ENABLED=true` and `SITE_ADMIN_EMAILS`.
+2. **Capture:** install `ingest/bookmarklet.js` as a bookmark. Click it on a chapter page to copy a capture JSON to the clipboard.
+3. **Export:**
+   ```bash
+   npx tsx scripts/ingest/export-context.ts --serial wandering-inn --clipboard   # or a capture.json path
+   ```
+   The script finds the matching chapter and always asks you to confirm it. The chapter must exist. If it does not, make it in the serial editor first. The script then writes `context.json`, which contains the wiki as readers see it at that chapter.
+4. **Propose:** start a new Claude Code session and run `/ingest-chapter .ingest/<chapter>/context.json`. The skill writes `proposals.json` and checks it with `npx tsx scripts/ingest/validate.ts`. The review page uses the same checks (`src/admin/ingestion/core.ts`).
+5. **Review:** run `npm run dev:dev` and open `/admin/ingestion`. Approve, edit, or reject each proposal. Each approval writes immediately at the chapter. The page refuses approvals if the target database is not the export database. The page logs each decision in `decisions.json`.

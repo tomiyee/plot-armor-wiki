@@ -1,4 +1,5 @@
 import { db } from "@/db/index";
+import type { Db } from "@/db/index";
 import {
   chapters,
   pages,
@@ -11,6 +12,7 @@ import {
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   ilike,
@@ -242,12 +244,13 @@ export function childRelMaxIdxSq(parentPageId: number, cutoffIdx: number) {
 export async function fetchSerialPagesAtIdx(
   serialId: number,
   cutoffIdx: number,
-): Promise<(PageStub & { introIdx: number | null })[]> {
+): Promise<(SerialPageStub & { introIdx: number | null })[]> {
   return db
     .select({
       id: pages.id,
       name: pages.name,
       slug: pages.slug,
+      introChapterId: pages.introChapterId,
       introIdx: chapters.idx,
     })
     .from(pages)
@@ -410,10 +413,11 @@ export async function fetchDeletedPages(
 export async function fetchPageContentAtIdx(
   pageId: number,
   cutoffIdx: number,
+  executor: Db = db,
 ): Promise<PageContentAtIdx> {
   const maxIdxSq = pageContentMaxIdxSq(pageId, cutoffIdx);
 
-  const [row] = await db
+  const [row] = await executor
     .select({ content: pageContentRevisions.content, chapterIdx: chapters.idx })
     .from(pageContentRevisions)
     .innerJoin(chapters, eq(pageContentRevisions.chapterId, chapters.id))
@@ -437,10 +441,11 @@ export async function fetchPageContentAtIdx(
 export async function fetchPageInfoboxAtIdx(
   pageId: number,
   cutoffIdx: number,
+  executor: Db = db,
 ): Promise<PageInfoboxAtIdx> {
   const maxIdxSq = pageInfoboxMaxIdxSq(pageId, cutoffIdx);
 
-  const [row] = await db
+  const [row] = await executor
     .select({
       content: pageInfoboxContentRevisions.content,
       imageUrl: pageInfoboxContentRevisions.imageUrl,
@@ -701,8 +706,9 @@ export async function fetchAllSerialPageStubs(
  */
 export async function getSerialPages(
   serialId: number,
+  executor: Db = db,
 ): Promise<SerialPageStub[]> {
-  return db
+  return executor
     .select({
       id: pages.id,
       name: pages.name,
@@ -740,12 +746,13 @@ export async function fetchPageSerialId(
 export async function fetchSearchablePagesAtIdx(
   serialId: number,
   cutoffIdx: number,
-): Promise<(PageStub & { introIdx: number | null })[]> {
+): Promise<(SerialPageStub & { introIdx: number | null })[]> {
   return db
     .select({
       id: pages.id,
       name: pages.name,
       slug: pages.slug,
+      introChapterId: pages.introChapterId,
       introIdx: chapters.idx,
     })
     .from(pages)
@@ -759,4 +766,50 @@ export async function fetchSearchablePagesAtIdx(
       ),
     )
     .orderBy(asc(pages.name));
+}
+
+/**
+ * Returns every `page_titles` entry at or before `cutoffIdx` for all live
+ * pages in a serial, ordered by chapter idx ascending per page. One query
+ * instead of N `fetchPageTitleEntriesAtIdx` calls — used by the local ingest
+ * export to build a title + alias index over thousands of pages.
+ *
+ * Spoiler rule: entries stamped after `cutoffIdx` are excluded, so later
+ * renames never leak. The last entry per page is its resolved title.
+ */
+export async function fetchSerialPageTitlesAtIdx(
+  serialId: number,
+  cutoffIdx: number,
+): Promise<{ pageId: number; title: string; chapterIdx: number }[]> {
+  return db
+    .select({
+      pageId: pageTitles.pageId,
+      title: pageTitles.title,
+      chapterIdx: chapters.idx,
+    })
+    .from(pageTitles)
+    .innerJoin(pages, eq(pageTitles.pageId, pages.id))
+    .innerJoin(chapters, eq(pageTitles.chapterId, chapters.id))
+    .where(
+      and(
+        eq(pages.serialId, serialId),
+        isNull(pages.deletedAt),
+        lte(chapters.idx, cutoffIdx),
+      ),
+    )
+    .orderBy(asc(pageTitles.pageId), asc(chapters.idx));
+}
+
+/**
+ * Counts page body revisions stamped exactly at `chapterId`. The ingest export
+ * uses it to warn that manual edits already exist at the target chapter.
+ */
+export async function countPageContentRevisionsAtChapter(
+  chapterId: number,
+): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(pageContentRevisions)
+    .where(eq(pageContentRevisions.chapterId, chapterId));
+  return row?.n ?? 0;
 }
